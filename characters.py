@@ -1,5 +1,3 @@
-from consts import Powerups, Speed, Smart
-from enum import IntEnum
 import random
 import uuid
 import math
