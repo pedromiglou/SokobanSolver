@@ -1,59 +1,41 @@
 import os
 import logging
 import random
-from enum import IntFlag
+from functools import reduce
+from operator import add
+
+from consts import Tiles, TILES
 
 logger = logging.getLogger("Map")
 logger.setLevel(logging.DEBUG)
-
-
-class Tiles(IntFlag):
-    FLOOR = 0   # -
-    GOAL = 1    # .
-    MAN = 2     # @
-    MAN_ON_GOAL = 3 # +
-    BOX = 4     # $
-    BOX_ON_GOAL = 5 # *
-    WALL = 8    # #
-
-TILES = {
-    '-': Tiles.FLOOR,
-    '.': Tiles.GOAL,
-    '@': Tiles.MAN,
-    '+': Tiles.MAN_ON_GOAL,
-    '$': Tiles.BOX,
-    '*': Tiles.BOX_ON_GOAL,
-    '#': Tiles.WALL
-        }
 
 
 class Map:
     def __init__(self, filename):
         self._map = []
         self._level = filename
-        self._keeper = None 
+        self._keeper = None
+        self._boxes = None
 
-        with open(filename, 'r') as f:
+        with open(filename, "r") as f:
             for line in f:
                 codedline = []
                 for c in line.strip():
-                    assert c in TILES
+                    assert c in TILES, f"Invalid character '{c}' in map file"
                     tile = TILES[c]
                     codedline.append(tile)
 
                 self._map.append(codedline)
 
-        self._size = len(self._map[0]), len(self._map) # X, Y
-        self.hor_tiles, self.ver_tiles = self._size
-
+        self.hor_tiles, self.ver_tiles = len(self._map[0]), len(self._map)  # X, Y
 
     def __str__(self):
         map_str = ""
-        screen = {y:x for x,y in TILES.items()}
+        screen = {tile: symbol for symbol, tile in TILES.items()}
         for line in self._map:
-            for c in line:
-                map_str += screen[c]
-            map_str += '\n'
+            for tile in line:
+                map_str += screen[tile]
+            map_str += "\n"
 
         return map_str.strip()
 
@@ -62,49 +44,53 @@ class Map:
 
     def __setstate__(self, state):
         self._map = state
+        self._keeper = None
+        self._boxes = None
+        self.hor_tiles, self.ver_tiles = len(self._map[0]), len(self._map)  # X, Y
 
     @property
     def size(self):
-        return self._size
+        return self.hor_tiles, self.ver_tiles
 
     @property
     def completed(self):
-        for l in self._map:
-            for c in l:
-                if c == Tiles.BOX:
-                    return False
-        return True
+        """Map is completed when there are no BOX not ON GOAL."""
+        return self.filter_tiles([Tiles.BOX]) == []
+
+    @property
+    def on_goal(self):
+        """Number of boxes on goal.
+
+           Counts per line and counts all lines using reduce
+        """
+        return reduce(
+            add,
+            [
+                reduce(lambda a, b: a + int(b is Tiles.BOX_ON_GOAL), l, 0)
+                for l in self._map
+            ],
+        )
+
+    def filter_tiles(self, list_to_filter):
+        return [
+            (x, y)
+            for y, l in enumerate(self._map)
+            for x, tile in enumerate(l)
+            if tile in list_to_filter
+        ]
 
     @property
     def keeper(self):
         if self._keeper is None:
-            # locate where we start
-            y = 0
-            for l in self._map:
-                x = 0
-                for tile in l:
-                    if tile == Tiles.MAN:
-                        self._keeper = x, y
-                    x+=1
-                y+=1
+            self._keeper = self.filter_tiles([Tiles.MAN])[0]
 
         return self._keeper
-    
+
     @property
     def boxes(self):
-        #TODO: don't search for boxes all the time (do the same as keeper)
-
-        boxes = []
-        y = 0
-        for l in self._map:
-            x = 0
-            for tile in l:
-                if tile in [Tiles.BOX, Tiles.BOX_ON_GOAL]:
-                    boxes.append((x,y))
-                x+=1
-            y+=1
-        print(boxes)
-        return boxes
+        if self._boxes is None:
+            self._boxes = self.filter_tiles([Tiles.BOX, Tiles.BOX_ON_GOAL])
+        return self._boxes
 
     def get_tile(self, pos):
         x, y = pos
@@ -120,14 +106,10 @@ class Map:
             return True
         return False
 
-    def is_wall(self, pos):
-        x, y = pos
-        if x >= self.hor_tiles or y >= self.ver_tiles: #everything outside of map is a WALL
-            return True
-        return self._map[x][y] in [Tiles.WALL]
-
     def move(self, cur, direction):
-        assert direction in "wasd" or direction == ""
+        assert (
+            direction in "wasd" or direction == ""
+        ), f"Can't move in {direction} direction"
 
         cx, cy = cur
         ctile = self.get_tile(cur)
@@ -146,13 +128,16 @@ class Map:
         if self.is_blocked(npos):
             logger.debug("Blocked ahead")
             return False
-        if self.get_tile(npos) in [Tiles.BOX, Tiles.BOX_ON_GOAL]: #next position has a box?
-            if ctile & Tiles.MAN == Tiles.MAN: #if you are the keeper you can push
-                if not self.move(npos, direction): #as long as the pushed box can move
+        if self.get_tile(npos) in [
+            Tiles.BOX,
+            Tiles.BOX_ON_GOAL,
+        ]:  # next position has a box?
+            if ctile & Tiles.MAN == Tiles.MAN:  # if you are the keeper you can push
+                if not self.move(npos, direction):  # as long as the pushed box can move
                     return False
-            else: #you are not the Keeper, so no pushing
+            else:  # you are not the Keeper, so no pushing
                 return False
-        
+
         # actually update map
         self._map[cy][cx] = ctile & 1
         nx, ny = npos
@@ -160,27 +145,31 @@ class Map:
 
         if ctile & Tiles.MAN == Tiles.MAN:
             self._keeper = npos
+        if ctile & Tiles.BOX in [Tiles.BOX, Tiles.BOX_ON_GOAL]:
+            idx = self._boxes.index(cur)
+            self._boxes[idx] = npos
 
         return True
 
 
 if __name__ == "__main__":
-    mapa = Map('levels/1.xsb')
+    mapa = Map("levels/2.xsb")
     print(mapa)
-    assert mapa.keeper == (11,8)
-    assert mapa.get_tile((4,2)) == Tiles.WALL
-    assert mapa.get_tile((5,2)) == Tiles.BOX
-    assert mapa.get_tile((2,7)) == Tiles.BOX
+    assert mapa.keeper == (11, 8)
+    assert mapa.get_tile((4, 2)) == Tiles.WALL
+    assert mapa.get_tile((5, 2)) == Tiles.BOX
+    assert mapa.get_tile((2, 7)) == Tiles.BOX
     assert mapa.get_tile(mapa.keeper) == Tiles.MAN
-
-    assert mapa.move(mapa.keeper, 'w')
-    assert mapa.move(mapa.keeper, 'd')
-    assert mapa.move(mapa.keeper, 'd')
-    assert mapa.move(mapa.keeper, 'd')
-    assert mapa.move(mapa.keeper, 'd')
-    assert mapa.move(mapa.keeper, 'd')
+    print("")
+    assert mapa.move(mapa.keeper, "w")
+    assert mapa.move(mapa.keeper, "d")
+    assert mapa.move(mapa.keeper, "d")
+    assert mapa.move(mapa.keeper, "d")
+    assert mapa.move(mapa.keeper, "d")
+    assert mapa.move(mapa.keeper, "d")
     print(mapa)
-    assert mapa.keeper == (16,7)
-    assert not mapa.move(mapa.keeper, 'd') #can't push any further
-    assert mapa.get_tile((17,7)) == Tiles.BOX_ON_GOAL
-
+    assert mapa.keeper == (16, 7)
+    assert not mapa.move(mapa.keeper, "d")  # can't push any further
+    assert mapa.get_tile((17, 7)) == Tiles.BOX_ON_GOAL
+    assert mapa.on_goal == 1
+    assert mapa.boxes == [(5, 2), (7, 3), (5, 4), (7, 4), (2, 7), (17, 7)]
