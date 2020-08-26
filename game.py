@@ -1,90 +1,141 @@
+"""Game Logic."""
 import asyncio
 import json
 import logging
-import math
-import os
 
-import requests
-
-from characters import Keeper, Box
 from mapa import Map, Tiles
 
 logger = logging.getLogger("Game")
 logger.setLevel(logging.DEBUG)
 
 INITIAL_SCORE = 0
-TIMEOUT = 30000
+TIMEOUT = 3000
 GAME_SPEED = 10
 
+
+def reduce_score(score):
+    """Convert tuple into 1-dimension score."""
+    moves, pushes, steps = score
+    return moves + pushes + steps
+
+
 class Game:
-    def __init__(self, level=1, timeout=TIMEOUT):
-        logger.info(f"Game(level={level})")
-        self.initial_level = level
-        self._running = False
+    """Representation of a Game run."""
+
+    def __init__(self, level=1, timeout=TIMEOUT, player=None):
+        logger.info("Game(level=%s)", level)
+        self.level = level
+        if player:
+            self._running = True
+            self._player_name = player
+        else:
+            self._running = False
         self._timeout = timeout
-        self._score = 0
         self._step = 0
         self._total_steps = 0
         self._state = {}
+        self._papertrail = ""  # keeps track of all steps made by the player
+        self._moves = 0
+        self._pushes = 0
+        self.map = None
+        self._lastkeypress = ""
+
+        self.next_level(self.level)
 
     def info(self):
+        """Initial Static information about the game."""
         return {
             "fps": GAME_SPEED,
-            "timeout": TIMEOUT,
-            "score": self.score,
-            "map": f"levels/{self.initial_level}.xsb",
+            "timeout": self._timeout,
+            "map": f"levels/{self.level}.xsb",
         }
 
     @property
+    def papertrail(self):
+        """String containing all pressed keys by agent."""
+        return self._papertrail
+
+    @property
     def running(self):
+        """Status on game."""
         return self._running
 
     @property
     def score(self):
-        return self._score
-
-    @property
-    def total_steps(self):
-        return self._total_steps
-
-    def start(self, player_name):
-        logger.debug("Reset world")
-        self._player_name = player_name
-        self._running = True
-        self._total_steps = 0
-        self._score = INITIAL_SCORE
-
-        self.next_level(self.initial_level)
+        """Calculus of the current score."""
+        return self._moves, self._pushes, self._total_steps + self._step
 
     def stop(self):
-        logger.info("GAME OVER")
-        self._total_steps += self._step
+        """Stop the game."""
+        if self._step:
+            logger.info("GAME OVER at %s", self._step)
         self._running = False
 
     def next_level(self, level):
-        self.level = level
-        if level > 1:   #TODO determinar fim do jogo
-            logger.info("You WIN!")
-            self.stop()
-            return
-
-        logger.info("NEXT LEVEL")
-        self.map = Map(f"levels/{level}.xsb")
+        """Update all state variables to a new level."""
         self._total_steps += self._step
         self._step = 0
         self._lastkeypress = ""
-
-    def quit(self):
-        logger.debug("Quit")
-        self._running = False
+        self.level = level
+        try:
+            self.map = Map(f"levels/{level}.xsb")
+            logger.info("NEXT LEVEL: %s", level)
+        except FileNotFoundError:
+            logger.info("No more levels... You WIN!")
+            self.stop()
+            return
 
     def keypress(self, key):
+        """Update locally last key pressed."""
         self._lastkeypress = key
 
+    def move(self, cur, direction):
+        """Move an entity in the game."""
+        assert direction in "wasd", f"Can't move in {direction} direction"
+
+        cx, cy = cur
+        ctile = self.map.get_tile(cur)
+
+        npos = cur
+        if direction == "w":
+            npos = cx, cy - 1
+        if direction == "a":
+            npos = cx - 1, cy
+        if direction == "s":
+            npos = cx, cy + 1
+        if direction == "d":
+            npos = cx + 1, cy
+
+        # test blocked
+        if self.map.is_blocked(npos):
+            logger.debug("Blocked ahead")
+            return False
+        if self.map.get_tile(npos) in [
+            Tiles.BOX,
+            Tiles.BOX_ON_GOAL,
+        ]:  # next position has a box?
+            if ctile & Tiles.MAN == Tiles.MAN:  # if you are the keeper you can push
+                if not self.move(npos, direction):  # as long as the pushed box can move
+                    return False
+            else:  # you are not the Keeper, so no pushing
+                return False
+            self._pushes += 1
+        else:
+            self._moves += 1
+
+        # actually update map
+        self.map.set_tile(npos, ctile)
+        self.map.clear_tile(cur)
+        return True
+
     def update_keeper(self):
+        """Update the location of the Keeper."""
+        if self._lastkeypress == "":
+            return
         try:
             # Update position
-            self.map.move(self.map.keeper, self._lastkeypress)
+            self.move(self.map.keeper, self._lastkeypress)
+            self._papertrail += self._lastkeypress
         except AssertionError:
             logger.error(
                 "Invalid key <%s> pressed. Valid keys: w,a,s,d", self._lastkeypress
@@ -93,10 +144,11 @@ class Game:
             self._lastkeypress = ""  # remove inertia
 
         if self.map.completed:
-            logger.info(f"Level {self.level} completed")
+            logger.info("Level %s completed", self.level)
             self.next_level(self.level + 1)
 
     async def next_frame(self):
+        """Calculate next frame."""
         await asyncio.sleep(1.0 / GAME_SPEED)
 
         if not self._running:
@@ -104,27 +156,25 @@ class Game:
             return
 
         self._step += 1
-        if self._step == self._timeout:
+        if self._step >= self._timeout:
             self.stop()
 
         if self._step % 100 == 0:
-            logger.debug(
-                f"[{self._step}] SCORE {self._score}"
-            )
+            logger.debug("[%s] SCORE %s", self._step, self.score)
 
         self.update_keeper()
 
         self._state = {
+            "player": self._player_name,
             "level": self.level,
             "step": self._step,
-            "timeout": self._timeout,
-            "player": self._player_name,
-            "score": self._score,
+            "score": self.score,
             "keeper": self.map.keeper,
             "boxes": self.map.boxes,
         }
 
     @property
     def state(self):
-        #logger.debug(self._state)
+        """Contains the state of the Game."""
+        # logger.debug(self._state)
         return json.dumps(self._state)

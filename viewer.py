@@ -1,15 +1,17 @@
-import os
-import asyncio
-import pygame
-import random
-from functools import partial
-import json
-import asyncio
-import websockets
-import logging
+"""Viewer application."""
 import argparse
-import time
-from mapa import Map, Tiles
+import asyncio
+import json
+import logging
+import os
+import random
+
+import websockets
+
+import pygame
+from consts import RANKS, Tiles
+from mapa import Map
+from game import reduce_score
 
 logging.basicConfig(level=logging.DEBUG)
 logger_websockets = logging.getLogger("websockets")
@@ -25,6 +27,7 @@ KEEPER = {
     "right": (0, 6 * 64),
 }
 BOX = (7 * 64, 0)
+BOX_ON_GOAL = (9 * 64, 0)
 GOAL = (12 * 64, 5 * 64)
 WALL = (8 * 64, 6 * 64)
 PASSAGE = (12 * 64, 6 * 64)
@@ -42,71 +45,57 @@ COLORS = {
     "yellow": (255, 255, 0),
     "grey": (120, 120, 120),
 }
-BACKGROUND = (0, 0, 0)
-RANKS = {
-    1: "1ST",
-    2: "2ND",
-    3: "3RD",
-    4: "4TH",
-    5: "5TH",
-    6: "6TH",
-    7: "7TH",
-    8: "8TH",
-    9: "9TH",
-    10: "10TH",
-}
-
 SPRITES = None
+SCREEN = None
 
 
-async def messages_handler(ws_path, queue):
-    async with websockets.connect(ws_path) as websocket:
+async def messages_handler(websocket_path, queue):
+    """Handles server side messages, putting them into a queue."""
+    async with websockets.connect(websocket_path) as websocket:
         await websocket.send(json.dumps({"cmd": "join"}))
 
         while True:
-            r = await websocket.recv()
-            queue.put_nowait(r)
-
-
-class GameOver(BaseException):
-    pass
+            update = await websocket.recv()
+            queue.put_nowait(update)
 
 
 class Artifact(pygame.sprite.Sprite):
-    def __init__(self, *args, **kw):
-        self.x, self.y = None, None  # postpone to update_sprite()
+    """Representation of moving pieces."""
 
+    def __init__(self, *args, **kw):
         x, y = kw.pop("pos", ((kw.pop("x", 0), kw.pop("y", 0))))
         new_pos = scale((x, y))
+        self.x, self.y = new_pos[0], new_pos[1]
+
         self.image = pygame.Surface(CHAR_SIZE)
         self.rect = pygame.Rect(new_pos + CHAR_SIZE)
-        self.update_sprite((x, y))
-        super().__init__()
+        self.update((x, y))
+        super().__init__(*args, **kw)
 
-    def update_sprite(self, pos=None):
+    def update(self, pos=None):
+        """Updates the sprite with a new position."""
         if not pos:
             pos = self.x, self.y
         else:
             pos = scale(pos)
         self.rect = pygame.Rect(pos + CHAR_SIZE)
         self.image.fill((0, 0, 230))
-        self.image.blit(SPRITES, (0,0), (*PASSAGE, *scale((1, 1))))
+        self.image.blit(SPRITES, (0, 0), (*PASSAGE, *scale((1, 1))))
         self.image.blit(*self.sprite)
         # self.image = pygame.transform.scale(self.image, scale((1, 1)))
         self.x, self.y = pos
 
-    def update(self, *args):
-        self.update_sprite()
-
 
 class Keeper(Artifact):
+    """Handles Keeper Sprites."""
+
     def __init__(self, *args, **kw):
         self.direction = "left"
         self.sprite = (SPRITES, (0, 0), (*KEEPER[self.direction], *scale((1, 1))))
         super().__init__(*args, **kw)
 
-    def update(self, new_pos):
-        x, y = scale(new_pos)
+    def update(self, pos=None):
+        x, y = scale(pos)
 
         if x > self.x:
             self.direction = "right"
@@ -118,84 +107,84 @@ class Keeper(Artifact):
             self.direction = "up"
 
         self.sprite = (SPRITES, (0, 0), (*KEEPER[self.direction], *scale((1, 1))))
-        self.update_sprite(tuple(new_pos))
+        super().update(tuple(pos))
 
-class Wall(Artifact):
-    def __init__(self, *args, **kw):
-        self.sprite = (SPRITES, (0, 0), (*WALL, *scale((1, 1))))
-        super().__init__(*args, **kw)
 
 class Box(Artifact):
+    """Handles Box Sprites."""
+
     def __init__(self, *args, **kw):
         self.sprite = (SPRITES, (0, 0), (*BOX, *scale((1, 1))))
+        if kw.pop("stored"):
+            self.sprite = (SPRITES, (0, 0), (*BOX_ON_GOAL, *scale((1, 1))))
         super().__init__(*args, **kw)
 
 
 def clear_callback(surf, rect):
-    """beneath everything there is a passage."""
+    """Beneath everything there is a passage."""
     surf.blit(SPRITES, (rect.x, rect.y), (*PASSAGE, rect.width, rect.height))
 
 
 def scale(pos):
+    """Scale positions according to gfx."""
     x, y = pos
     return int(x * CHAR_LENGTH / SCALE), int(y * CHAR_LENGTH / SCALE)
 
 
 def draw_background(mapa):
+    """Create background surface."""
     background = pygame.Surface(scale(mapa.size))
     for x in range(mapa.size[0]):
         for y in range(mapa.size[1]):
             wx, wy = scale((x, y))
             background.blit(SPRITES, (wx, wy), (*PASSAGE, *scale((1, 1))))
-            if mapa.get_tile((x,y)) == Tiles.WALL:
+            if mapa.get_tile((x, y)) == Tiles.WALL:
                 background.blit(SPRITES, (wx, wy), (*WALL, *scale((1, 1))))
-            if mapa.get_tile((x,y)) == Tiles.GOAL:
+            if mapa.get_tile((x, y)) == Tiles.GOAL:
                 background.blit(SPRITES, (wx, wy), (*GOAL, *scale((1, 1))))
 
     return background
 
 
-def draw_info(SCREEN, text, pos, color=(0, 0, 0), background=None):
-    myfont = pygame.font.Font(None, int(22 / SCALE))
+def draw_info(surface, text, pos, color=(0, 0, 0), background=None):
+    """Creates text based surfaces for information display."""
+    myfont = pygame.font.Font(None, int(24 / SCALE))
     textsurface = myfont.render(text, True, color, background)
 
     x, y = pos
-    if x > SCREEN.get_width():
-        pos = SCREEN.get_width() - (textsurface.get_width() +10), y
-    if y > SCREEN.get_height():
-        pos = x, SCREEN.get_height() - textsurface.get_height()
+    if x > surface.get_width():
+        pos = surface.get_width() - (textsurface.get_width() + 10), y
+    if y > surface.get_height():
+        pos = x, surface.get_height() - textsurface.get_height()
 
     if background:
-        SCREEN.blit(background, pos)
+        surface.blit(background, pos)
     else:
         erase = pygame.Surface(textsurface.get_size())
         erase.fill(COLORS["grey"])
 
-    SCREEN.blit(textsurface, pos)
+    surface.blit(textsurface, pos)
     return textsurface.get_width(), textsurface.get_height()
 
-async def main_loop(q):
-    while True:
-        await main_game()
 
-
-async def main_game():
+async def main_loop(queue):
+    """Processes events from server and display's."""
     global SPRITES, SCREEN
 
     main_group = pygame.sprite.LayeredUpdates()
     boxes_group = pygame.sprite.OrderedUpdates()
 
     logging.info("Waiting for map information from server")
-    state = await q.get()  # first state message includes map information
+    state = await queue.get()  # first state message includes map information
     logging.debug("Initial game status: %s", state)
     newgame_json = json.loads(state)
 
-    import pprint
-    pprint.pprint(newgame_json)
-
     GAME_SPEED = newgame_json["fps"]
-    mapa = Map(newgame_json["map"])
-    TIMEOUT = newgame_json["timeout"]
+    try:
+        mapa = Map(newgame_json["map"])
+
+    except (KeyError, FileNotFoundError):
+        mapa = Map("levels/1.xsb")  # Fallback to initial map
     SCREEN = pygame.display.set_mode(scale(mapa.size))
     SPRITES = pygame.image.load("data/sokoban.png").convert_alpha()
 
@@ -203,8 +192,14 @@ async def main_game():
     SCREEN.blit(BACKGROUND, (0, 0))
     main_group.add(Keeper(pos=mapa.keeper))
 
-    state = {"score": 0, "player": "player1", "keeper": mapa.keeper, "boxes": mapa.boxes}
+    state = {
+        "score": 0,
+        "player": "player1",
+        "keeper": mapa.keeper,
+        "boxes": mapa.boxes,
+    }
 
+    new_event = True
     while True:
         SCREEN.blit(BACKGROUND, (0, 0))
         pygame.event.pump()
@@ -215,70 +210,58 @@ async def main_game():
         boxes_group.clear(SCREEN, clear_callback)
 
         if "score" in state and "player" in state:
-            text = str(state["score"])
+            text = f"m, p, s: {state['score']}"
             draw_info(SCREEN, text.zfill(6), (5, 1))
             text = str(state["player"]).rjust(32)
             draw_info(SCREEN, text, (4000, 1))
 
         if "level" in state:
-            w,_ = draw_info(SCREEN, "level: ", (2*SCREEN.get_width()/4 ,1))        
-            draw_info(SCREEN, f"{state['level']}", (2*SCREEN.get_width()/4 + w,1),color=(255, 0, 0))
-        
-        if "step" in state:
-            w,_ = draw_info(SCREEN, "steps: ", (3*SCREEN.get_width()/4,1))
-            draw_info(SCREEN, f"{state['step']}", (3*SCREEN.get_width()/4 + w ,1),color=(255, 0, 0))               
+            w, _ = draw_info(SCREEN, "level: ", (SCREEN.get_width() / 2, 1))
+            draw_info(
+                SCREEN,
+                f"{state['level']}",
+                (SCREEN.get_width() / 2 + w, 1),
+                color=(200, 20, 20),
+            )
 
         if "boxes" in state:
             boxes_group.empty()
             for box in state["boxes"]:
-                boxes_group.add(Box(pos=box))
+                boxes_group.add(Box(pos=box, stored=mapa.get_tile(box) == Tiles.GOAL))
 
         boxes_group.draw(SCREEN)
         main_group.draw(SCREEN)
 
         # Highscores Board
-        if (
-            ("step" in state and state["step"] >= TIMEOUT)
-            or (
-                "keeper" in state
-                and "exit" in state
-                and state["keeper"] == state["exit"]
-            )
-        ):
-            highscores = newgame_json["highscores"]
-            if (f"<{state['player']}>", state["score"]) not in highscores:
-                highscores.append((f"<{state['player']}>", state["score"]))
-            highscores = sorted(highscores, key=lambda s: s[1], reverse=True)[:-1]
-            highscores = highscores[:len(RANKS)]
-
-            HIGHSCORES = pygame.Surface(scale((20, 16)))
-            HIGHSCORES.fill(COLORS["grey"])
-
-            draw_info(HIGHSCORES, "THE 10 BEST PLAYERS", scale((5, 1)), COLORS["white"])
-            draw_info(HIGHSCORES, "RANK", scale((2, 3)), COLORS["orange"])
-            draw_info(HIGHSCORES, "SCORE", scale((6, 3)), COLORS["orange"])
-            draw_info(HIGHSCORES, "NAME", scale((11, 3)), COLORS["orange"])
-
-            for i, highscore in enumerate(highscores):
-                c = (i % 5) + 1
-                draw_info(
-                    HIGHSCORES,
-                    RANKS[i + 1],
-                    scale((2, i + 5)),
-                    list(COLORS.values())[c],
+        if "highscores" in state and "player" in state:
+            if new_event:
+                highscores = state["highscores"]
+                highscores.append(
+                    (f"<{state['player']}>", reduce_score(state["score"]))
                 )
-                draw_info(
-                    HIGHSCORES,
-                    str(highscore[1]),
-                    scale((6, i + 5)),
-                    list(COLORS.values())[c],
-                )
-                draw_info(
-                    HIGHSCORES,
-                    highscore[0],
-                    scale((11, i + 5)),
-                    list(COLORS.values())[c],
-                )
+
+                highscores = sorted(highscores, key=lambda s: s[1])
+                highscores = highscores[: len(RANKS)]
+
+                HIGHSCORES = pygame.Surface((256, 280))
+                HIGHSCORES.fill((30, 30, 30))
+
+                COLS = [20, 80, 150]
+
+                draw_info(HIGHSCORES, "THE 10 BEST PLAYERS", (20, 10), COLORS["white"])
+                for value, column in zip(["RANK", "SCORE", "NAME"], COLS):
+                    draw_info(HIGHSCORES, value, (column, 30), COLORS["orange"])
+
+                for i, highscore in enumerate(highscores):
+                    color = (
+                        random.randrange(66, 222),
+                        random.randrange(66, 222),
+                        random.randrange(66, 222),
+                    )
+                    for value, column in zip(
+                        [RANKS[i + 1], str(highscore[1]), highscore[0]], COLS
+                    ):
+                        draw_info(HIGHSCORES, value, (column, 60 + i * 20), color)
 
             SCREEN.blit(
                 HIGHSCORES,
@@ -294,23 +277,25 @@ async def main_game():
         pygame.display.flip()
 
         try:
-            state = json.loads(q.get_nowait())
-
-            if (
-                "step" in state
-                and state["step"] == 1
-            ):
-
+            state = json.loads(queue.get_nowait())
+            new_event = True
+            if "step" in state and state["step"] == 1:
+                logger.debug("New Level!")
                 # New level! lets clean everything up!
+                mapa = Map(f"levels/{state['level']}.xsb")
+                SCREEN = pygame.display.set_mode(scale(mapa.size))
+                BACKGROUND = draw_background(mapa)
                 SCREEN.blit(BACKGROUND, (0, 0))
 
                 boxes_group.empty()
                 main_group.empty()
                 main_group.add(Keeper(pos=mapa.keeper))
                 mapa.level = state["level"]
+                pygame.display.flip()
 
         except asyncio.queues.QueueEmpty:
             await asyncio.sleep(1.0 / GAME_SPEED)
+            new_event = False
             continue
 
 
@@ -324,18 +309,22 @@ if __name__ == "__main__":
         "--scale", help="reduce size of window by x times", type=int, default=1
     )
     parser.add_argument("--port", help="TCP port", type=int, default=PORT)
-    args = parser.parse_args()
-    SCALE = args.scale
+    arguments = parser.parse_args()
+    SCALE = arguments.scale
 
     LOOP = asyncio.get_event_loop()
     pygame.font.init()
     q = asyncio.Queue()
+    PROGRAM_ICON = pygame.image.load("data/icon.png")
+    pygame.display.set_icon(PROGRAM_ICON)
 
-    ws_path = f"ws://{args.server}:{args.port}/viewer"
+    ws_path = f"ws://{arguments.server}:{arguments.port}/viewer"
 
     try:
         LOOP.run_until_complete(
             asyncio.gather(messages_handler(ws_path, q), main_loop(q))
         )
+    except RuntimeError as err:
+        logger.error(err)
     finally:
         LOOP.stop()

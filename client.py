@@ -1,15 +1,17 @@
-import sys
-import json
 import asyncio
-import websockets
 import getpass
+import json
 import os
 
+import websockets
 from mapa import Map
 
-# Next 2 lines are not needed for AI agent
+# Next 4 lines are not needed for AI agents, please remove them from your code!
 import pygame
+
 pygame.init()
+program_icon = pygame.image.load("data/icon2.png")
+pygame.display.set_icon(program_icon)
 
 
 async def agent_loop(server_address="localhost:8000", agent_name="student"):
@@ -22,6 +24,7 @@ async def agent_loop(server_address="localhost:8000", agent_name="student"):
 
         # You can create your own map representation or use the game representation:
         mapa = Map(game_properties["map"])
+        print(mapa)
 
         # Next 3 lines are not needed for AI agent
         SCREEN = pygame.display.set_mode((299, 123))
@@ -52,6 +55,7 @@ async def agent_loop(server_address="localhost:8000", agent_name="student"):
 
                         elif event.key == pygame.K_d:
                             import pprint
+
                             pprint.pprint(state)
 
                         await websocket.send(
@@ -68,7 +72,7 @@ async def agent_loop(server_address="localhost:8000", agent_name="student"):
 
 # DO NOT CHANGE THE LINES BELLOW
 # You can change the default values using the command line, example:
-# $ NAME='bombastico' python3 client.py
+# $ NAME='arrumador' python3 client.py
 loop = asyncio.get_event_loop()
 SERVER = os.environ.get("SERVER", "localhost")
 PORT = os.environ.get("PORT", "8000")

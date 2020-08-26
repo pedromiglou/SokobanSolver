@@ -1,23 +1,39 @@
-from enum import IntEnum
+"""Constants shared amongst modules."""
+from enum import IntFlag
 
-#TODO Delete
-class Powerups(IntEnum):
-    Bombs = 1,
-    Flames = 2,
-    Speed = 3,
-    Wallpass = 4,
-    Detonator = 5,
-    Bombpass = 6,
-    Flamepass = 7,
-    Mystery = 8  
+MAX_HIGHSCORES = 10
 
-class Speed(IntEnum):
-    SLOWEST = 1,
-    SLOW = 2,
-    NORMAL = 3,
-    FAST = 4
+RANKS = {
+    1: "1ST",
+    2: "2ND",
+    3: "3RD",
+    4: "4TH",
+    5: "5TH",
+    6: "6TH",
+    7: "7TH",
+    8: "8TH",
+    9: "9TH",
+    10: "10TH",
+}
 
-class Smart(IntEnum):
-    LOW = 1,
-    NORMAL = 2,
-    HIGH = 3
+
+class Tiles(IntFlag):
+    """Tiles bitfield."""
+    FLOOR = 0  # -
+    GOAL = 1  # .
+    MAN = 2  # @
+    MAN_ON_GOAL = 3  # +
+    BOX = 4  # $
+    BOX_ON_GOAL = 5  # *
+    WALL = 8  # #
+
+
+TILES = {
+    "-": Tiles.FLOOR,
+    ".": Tiles.GOAL,
+    "@": Tiles.MAN,
+    "+": Tiles.MAN_ON_GOAL,
+    "$": Tiles.BOX,
+    "*": Tiles.BOX_ON_GOAL,
+    "#": Tiles.WALL,
+}
