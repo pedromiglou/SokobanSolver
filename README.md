@@ -36,3 +36,7 @@ python -m pygame.examples.aliens
 # Tested on:
 - OSX 10.15.6
 
+# Credits
+
+Thank you [Kenney](https://www.kenney.nl/assets/sokoban) for the sprites! 
+
