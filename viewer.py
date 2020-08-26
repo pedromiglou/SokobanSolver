@@ -140,7 +140,7 @@ def draw_background(mapa):
             background.blit(SPRITES, (wx, wy), (*PASSAGE, *scale((1, 1))))
             if mapa.get_tile((x, y)) == Tiles.WALL:
                 background.blit(SPRITES, (wx, wy), (*WALL, *scale((1, 1))))
-            if mapa.get_tile((x, y)) == Tiles.GOAL:
+            if mapa.get_tile((x, y)) in [Tiles.GOAL, Tiles.BOX_ON_GOAL]:
                 background.blit(SPRITES, (wx, wy), (*GOAL, *scale((1, 1))))
 
     return background
@@ -182,7 +182,6 @@ async def main_loop(queue):
     GAME_SPEED = newgame_json["fps"]
     try:
         mapa = Map(newgame_json["map"])
-
     except (KeyError, FileNotFoundError):
         mapa = Map("levels/1.xsb")  # Fallback to initial map
     SCREEN = pygame.display.set_mode(scale(mapa.size))
@@ -227,7 +226,7 @@ async def main_loop(queue):
         if "boxes" in state:
             boxes_group.empty()
             for box in state["boxes"]:
-                boxes_group.add(Box(pos=box, stored=mapa.get_tile(box) == Tiles.GOAL))
+                boxes_group.add(Box(pos=box, stored=mapa.get_tile(box) in [Tiles.GOAL, Tiles.BOX_ON_GOAL]))
 
         boxes_group.draw(SCREEN)
         main_group.draw(SCREEN)
@@ -279,10 +278,14 @@ async def main_loop(queue):
         try:
             state = json.loads(queue.get_nowait())
             new_event = True
-            if "step" in state and state["step"] == 1:
+            if "step" in state and state["step"] == 0:
                 logger.debug("New Level!")
                 # New level! lets clean everything up!
-                mapa = Map(f"levels/{state['level']}.xsb")
+                try:
+                    mapa = Map(f"levels/{state['level']}.xsb")
+                except FileNotFoundError:
+                    logger.error("Can't find levels/%s.xsb, means we have a WINNER!", state['level'])
+                    continue
                 SCREEN = pygame.display.set_mode(scale(mapa.size))
                 BACKGROUND = draw_background(mapa)
                 SCREEN.blit(BACKGROUND, (0, 0))

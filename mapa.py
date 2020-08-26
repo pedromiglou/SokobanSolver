@@ -20,14 +20,19 @@ class Map:
         with open(filename, "r") as f:
             for line in f:
                 codedline = []
-                for c in line.strip():
+                for c in line.rstrip():
                     assert c in TILES, f"Invalid character '{c}' in map file"
                     tile = TILES[c]
                     codedline.append(tile)
 
                 self._map.append(codedline)
 
-        self.hor_tiles, self.ver_tiles = len(self._map[0]), len(self._map)  # X, Y
+        self.hor_tiles, self.ver_tiles = max([len(line) for line in self._map]), len(self._map)  # X, Y
+
+        # Add extra tiles to make the map a rectangule 
+        for y, line in enumerate(self._map):
+            while len(line) < self.hor_tiles:
+                self._map[y].append(Tiles.FLOOR)
 
     def __str__(self):
         map_str = ""
@@ -45,7 +50,7 @@ class Map:
     def __setstate__(self, state):
         self._map = state
         self._keeper = None
-        self.hor_tiles, self.ver_tiles = len(self._map[0]), len(self._map)  # X, Y
+        self.hor_tiles, self.ver_tiles = max([len(line) for line in self._map]), len(self._map)  # X, Y
 
     @property
     def size(self):
@@ -54,10 +59,8 @@ class Map:
 
     @property
     def completed(self):
-        """Map is completed when there are no BOX not ON GOAL.
-        And for sanity check, no empty_goals!
-        """
-        return self.filter_tiles([Tiles.BOX]) == [] and self.empty_goals == []
+        """Map is completed when there are no empty_goals!"""
+        return self.empty_goals == []
 
     @property
     def on_goal(self):
@@ -86,7 +89,7 @@ class Map:
     def keeper(self):
         """Coordinates of the Keeper."""
         if self._keeper is None:
-            self._keeper = self.filter_tiles([Tiles.MAN])[0]
+            self._keeper = self.filter_tiles([Tiles.MAN, Tiles.MAN_ON_GOAL])[0]
 
         return self._keeper
 
@@ -98,7 +101,7 @@ class Map:
     @property
     def empty_goals(self):
         """List of coordinates of the empty goals locations."""
-        return self.filter_tiles([Tiles.GOAL])
+        return self.filter_tiles([Tiles.GOAL, Tiles.MAN_ON_GOAL])
 
     def get_tile(self, pos):
         """Retrieve tile at position pos."""

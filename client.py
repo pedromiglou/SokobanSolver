@@ -55,9 +55,8 @@ async def agent_loop(server_address="localhost:8000", agent_name="student"):
 
                         elif event.key == pygame.K_d:
                             import pprint
-
                             pprint.pprint(state)
-
+                            print(Map(f"levels/{state['level']}.xsb"))
                         await websocket.send(
                             json.dumps({"cmd": "key", "key": key})
                         )  # send key command to server - you must implement this send in the AI agent
