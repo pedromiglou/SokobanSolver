@@ -27,9 +27,12 @@ class Map:
 
                 self._map.append(codedline)
 
-        self.hor_tiles, self.ver_tiles = max([len(line) for line in self._map]), len(self._map)  # X, Y
+        self.hor_tiles, self.ver_tiles = (
+            max([len(line) for line in self._map]),
+            len(self._map),
+        )  # X, Y
 
-        # Add extra tiles to make the map a rectangule 
+        # Add extra tiles to make the map a rectangule
         for y, line in enumerate(self._map):
             while len(line) < self.hor_tiles:
                 self._map[y].append(Tiles.FLOOR)
@@ -50,7 +53,10 @@ class Map:
     def __setstate__(self, state):
         self._map = state
         self._keeper = None
-        self.hor_tiles, self.ver_tiles = max([len(line) for line in self._map]), len(self._map)  # X, Y
+        self.hor_tiles, self.ver_tiles = (
+            max([len(line) for line in self._map]),
+            len(self._map),
+        )  # X, Y
 
     @property
     def size(self):
