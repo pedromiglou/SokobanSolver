@@ -226,7 +226,12 @@ async def main_loop(queue):
         if "boxes" in state:
             boxes_group.empty()
             for box in state["boxes"]:
-                boxes_group.add(Box(pos=box, stored=mapa.get_tile(box) in [Tiles.GOAL, Tiles.BOX_ON_GOAL]))
+                boxes_group.add(
+                    Box(
+                        pos=box,
+                        stored=mapa.get_tile(box) in [Tiles.GOAL, Tiles.BOX_ON_GOAL],
+                    )
+                )
 
         boxes_group.draw(SCREEN)
         main_group.draw(SCREEN)
@@ -278,13 +283,16 @@ async def main_loop(queue):
         try:
             state = json.loads(queue.get_nowait())
             new_event = True
-            if "step" in state and state["step"] == 0:
+            if "step" in state and state["step"] <= 1:
                 logger.debug("New Level!")
                 # New level! lets clean everything up!
                 try:
                     mapa = Map(f"levels/{state['level']}.xsb")
                 except FileNotFoundError:
-                    logger.error("Can't find levels/%s.xsb, means we have a WINNER!", state['level'])
+                    logger.error(
+                        "Can't find levels/%s.xsb, means we have a WINNER!",
+                        state["level"],
+                    )
                     continue
                 SCREEN = pygame.display.set_mode(scale(mapa.size))
                 BACKGROUND = draw_background(mapa)
