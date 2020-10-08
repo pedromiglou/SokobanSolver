@@ -1,7 +1,7 @@
 # iia-ia-sokoban
 Sokoban clone for AI teaching
 
-![Demo](https://github.com/dgomes/iia-ia-sokoban/raw/master/data/DemoSokoban.gif)
+![Demo](https://github.com/dgomes/iia-ia-sokoban/raw/master/data/sokoban_screenshot.png)
 
 ## How to install
 
