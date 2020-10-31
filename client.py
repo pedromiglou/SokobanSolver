@@ -31,12 +31,12 @@ async def agent_loop(server_address="localhost:8000", agent_name="student"):
                     await websocket.recv()
                 )  # receive game update, this must be called timely or your game will get out of sync with the server
 
-                if 'map' in update:
-                    #we got a new level
+                if "map" in update:
+                    # we got a new level
                     game_properties = update
-                    mapa = Map(update['map'])
+                    mapa = Map(update["map"])
                 else:
-                    #we got a current map state update
+                    # we got a current map state update
                     state = update
 
                 # Next lines are only for the Human Agent, the key values are nonetheless the correct ones!

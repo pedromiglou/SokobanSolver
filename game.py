@@ -14,7 +14,6 @@ TIMEOUT = 3000
 GAME_SPEED = 10
 
 
-
 def reduce_score(score):
     """Convert tuple into 1-dimension score."""
     moves, pushes, steps = score
@@ -133,7 +132,7 @@ class Game:
     def update_keeper(self):
         """Update the location of the Keeper."""
         if self._lastkeypress == "":
-            return
+            return GameStatus.NO_OPERATION
         try:
             # Update position
             self.move(self.map.keeper, self._lastkeypress)

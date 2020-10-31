@@ -287,7 +287,7 @@ async def main_loop(queue):
                 logger.debug("New Level!")
                 # New level! lets clean everything up!
                 try:
-                    mapa = Map(state['map'])
+                    mapa = Map(state["map"])
                 except FileNotFoundError:
                     logger.error(
                         "Can't find levels/%s.xsb, means we have a WINNER!",
