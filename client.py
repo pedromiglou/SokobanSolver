@@ -19,12 +19,6 @@ async def agent_loop(server_address="localhost:8000", agent_name="student"):
 
         # Receive information about static game properties
         await websocket.send(json.dumps({"cmd": "join", "name": agent_name}))
-        msg = await websocket.recv()
-        game_properties = json.loads(msg)
-
-        # You can create your own map representation or use the game representation:
-        mapa = Map(game_properties["map"])
-        print(mapa)
 
         # Next 3 lines are not needed for AI agent
         SCREEN = pygame.display.set_mode((299, 123))
@@ -33,9 +27,17 @@ async def agent_loop(server_address="localhost:8000", agent_name="student"):
 
         while True:
             try:
-                state = json.loads(
+                update = json.loads(
                     await websocket.recv()
-                )  # receive game state, this must be called timely or your game will get out of sync with the server
+                )  # receive game update, this must be called timely or your game will get out of sync with the server
+
+                if 'map' in update:
+                    #we got a new level
+                    game_properties = update
+                    mapa = Map(update['map'])
+                else:
+                    #we got a current map state update
+                    state = update
 
                 # Next lines are only for the Human Agent, the key values are nonetheless the correct ones!
                 key = ""

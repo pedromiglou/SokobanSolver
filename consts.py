@@ -17,6 +17,12 @@ RANKS = {
 }
 
 
+class GameStatus(IntFlag):
+    """Game Status"""
+    RUNNING = 0  
+    NEW_MAP = 1  
+
+    
 class Tiles(IntFlag):
     """Tiles bitfield."""
 

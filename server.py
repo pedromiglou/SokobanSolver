@@ -13,7 +13,7 @@ import requests
 from requests import RequestException
 import websockets
 
-from consts import MAX_HIGHSCORES
+from consts import MAX_HIGHSCORES, GameStatus
 from game import Game, reduce_score
 
 logging.basicConfig(
@@ -125,7 +125,12 @@ class GameServer:
                     game_record["papertrail"] = self.game.papertrail
 
                 while self.game.running:
-                    await self.game.next_frame()
+                    game_status = await self.game.next_frame()
+
+                    if game_status == GameStatus.NEW_MAP:
+                        game_info = self.game.info()
+                        await self.send_info(game_info)
+
                     state = self.game.state
                     await self.current_player.ws.send(state)
                     if self.viewers:
