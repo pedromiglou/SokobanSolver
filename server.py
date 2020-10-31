@@ -14,7 +14,7 @@ from requests import RequestException
 import websockets
 
 from consts import MAX_HIGHSCORES, GameStatus
-from game import Game, reduce_score
+from game import Game, reduce_score, TIMEOUT
 
 logging.basicConfig(
     level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -149,7 +149,7 @@ class GameServer:
             finally:
                 try:
                     if self.grading:
-                        game_record["score"] = reduce(add, self.game.score, 0)
+                        game_record["total_moves"], game_record["total_pushes"], game_record["total_steps"] = self.game.score
                         game_record["papertrail"] = self.game.papertrail
                         game_record["level"] = self.game.level
                         requests.post(self.grading, json=game_record)
@@ -168,7 +168,7 @@ if __name__ == "__main__":
     parser.add_argument("--level", help="start on level", type=int, default=1)
     parser.add_argument("--seed", help="Seed number", type=int, default=0)
     parser.add_argument(
-        "--timeout", help="Timeout after this amount of steps", type=int, default=3000
+        "--timeout", help="Timeout after this amount of steps", type=int, default=TIMEOUT
     )
     parser.add_argument(
         "--grading-server",
