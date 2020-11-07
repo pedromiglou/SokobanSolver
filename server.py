@@ -173,7 +173,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--grading-server",
         help="url of grading server",
-        default="http://sokoban-aulas.ws.atnog.av.it.pt/game",
+        default="http://bomberman-aulas.ws.atnog.av.it.pt/game",
     )
     args = parser.parse_args()
 
