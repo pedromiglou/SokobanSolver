@@ -6,6 +6,7 @@ import os
 import websockets
 from mapa import Map
 from student import SearchTree
+import time
 
 # Next 4 lines are not needed for AI agents, please remove them from your code!
 #import pygame
@@ -37,12 +38,18 @@ async def agent_loop(server_address="localhost:8000", agent_name="student"):
                     # we got a new level
                     game_properties = update
                     mapa = Map(update["map"])
+                    level = 0
                     search = SearchTree(mapa)
                     keys = search.search()
 
                 else:
                     # we got a current map state update
                     state = update
+                    if len(keys) == 0:
+                        level += 1
+                        mapa = Map("levels/"+str(level)+ ".xsb")
+                        search = SearchTree(mapa)
+                        keys = search.search()
 
                 """
                 # Next lines are only for the Human Agent, the key values are nonetheless the correct ones!
@@ -68,7 +75,7 @@ async def agent_loop(server_address="localhost:8000", agent_name="student"):
                             print(Map(f"levels/{state['level']}.xsb"))
                 """
 
-
+                time.sleep(1)
                 await websocket.send(
                     json.dumps({"cmd": "key", "key": keys.pop(0)})
                 )  # send key command to server - you must implement this send in the AI agent
