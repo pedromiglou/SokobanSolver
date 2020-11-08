@@ -1,0 +1,4 @@
+- mexer no client
+- student.py -> ficheiro de procura semelhante ao tree_search da pratica
+- fazer uma cópia de game para otimizar
+- mapa será semelhante a cidades.py da pratica
