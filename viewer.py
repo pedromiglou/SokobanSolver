@@ -140,7 +140,7 @@ def draw_background(mapa):
             background.blit(SPRITES, (wx, wy), (*PASSAGE, *scale((1, 1))))
             if mapa.get_tile((x, y)) == Tiles.WALL:
                 background.blit(SPRITES, (wx, wy), (*WALL, *scale((1, 1))))
-            if mapa.get_tile((x, y)) in [Tiles.GOAL, Tiles.BOX_ON_GOAL]:
+            if mapa.get_tile((x, y)) in [Tiles.GOAL, Tiles.BOX_ON_GOAL, Tiles.MAN_ON_GOAL]:
                 background.blit(SPRITES, (wx, wy), (*GOAL, *scale((1, 1))))
 
     return background
