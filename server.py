@@ -51,7 +51,7 @@ class GameServer:
         """Update highscores, storing to file."""
         logger.debug("Save highscores")
         logger.info(
-            "FINAL SCORE <%s>: %s moves and %s pushes in %s steps",
+            "FINAL SCORE <%s>: %s puzzles with %s moves and %s pushes in %s steps",
             self.current_player.name,
             *score,
         )
@@ -149,7 +149,7 @@ class GameServer:
             finally:
                 try:
                     if self.grading:
-                        game_record["total_moves"], game_record["total_pushes"], game_record["total_steps"] = self.game.score
+                        game_record["puzzles"], game_record["total_moves"], game_record["total_pushes"], game_record["total_steps"] = self.game.score
                         game_record["papertrail"] = self.game.papertrail
                         game_record["level"] = self.game.level
                         requests.post(self.grading, json=game_record)
