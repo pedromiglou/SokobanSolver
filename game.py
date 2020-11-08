@@ -79,6 +79,7 @@ class Game:
         self._total_steps += self._step
         self._step = 0
         self._lastkeypress = ""
+        self._papertrail += "," 
         self.level = level
         try:
             self.map = Map(f"levels/{level}.xsb")
