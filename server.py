@@ -51,12 +51,12 @@ class GameServer:
         """Update highscores, storing to file."""
         logger.debug("Save highscores")
         logger.info(
-            "FINAL SCORE <%s>: %s moves and %s pushes in %s steps",
+            "FINAL SCORE <%s>: %s puzzles with %s moves and %s pushes in %s steps, currently %s boxes on goal",
             self.current_player.name,
             *score,
         )
 
-        self._highscores.append((self.current_player.name, reduce_score(score),))
+        self._highscores.append((self.current_player.name, reduce_score(*score),))
         self._highscores = sorted(self._highscores, key=lambda s: s[1])[:MAX_HIGHSCORES]
 
         with open(HIGHSCORE_FILE, "w") as outfile:
@@ -149,7 +149,7 @@ class GameServer:
             finally:
                 try:
                     if self.grading:
-                        game_record["total_moves"], game_record["total_pushes"], game_record["total_steps"] = self.game.score
+                        game_record["puzzles"], game_record["total_moves"], game_record["total_pushes"], game_record["total_steps"], game_record["box_on_goal"] = self.game.score
                         game_record["papertrail"] = self.game.papertrail
                         game_record["level"] = self.game.level
                         requests.post(self.grading, json=game_record)
