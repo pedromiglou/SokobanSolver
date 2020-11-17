@@ -1,104 +1,75 @@
-import sys
-import copy
-from consts import Tiles, TILES
+import asyncio
+import getpass
+import json
+import os
+import random
 
-# Nos de uma arvore de pesquisa, state - mapa atual, parent - node anterior, key - tecla do parent para a node
-class SearchNode:
-    def __init__(self,state,parent, key): 
-        self.state = state
-        self.parent = parent
-        self.key = key
+import websockets
+from mapa import Map
 
-    def __str__(self):
-        return "no(" + str(self.state) + "," + str(self.parent) + ")"
-    def __repr__(self):
-        return str(self)
+from tree_search import *
 
-# Arvore de pesquisa
-# ideia - ter um objeto mapa inicial e ir testando todos os mapas possiveis
-class SearchTree:
+async def solver(puzzle, solution):
+    while True:
+        game_properties = await puzzle.get()
+        mapa = Map(game_properties["map"])
+        print(mapa)
 
-    # construtor
-    def __init__(self, initial_map):
-        root = SearchNode(initial_map, None, None)
-        self.open_nodes = [root]
+        while True:
+            searchTree = SearchTree(mapa)
+            keys = searchTree.search()
+            await asyncio.sleep(0.1)  # this should be 0 in your code and this is REQUIRED
+            break
 
-    # obter o caminho (de teclas) da raiz ate um no
-    def get_path(self,node):
-        if node.parent == None:
-            return []
-        path = self.get_path(node.parent)
-        path += [node.key]
-        return(path)
-    
-    # obter o caminho da raiz ate um no
-    def get_path_str(self,node):
-        if node.parent == None:
-            return [node.state.__str__]
-        path = self.get_path(node.parent)
-        path += [node.state.__str__]
-        return(path)
+        await solution.put(keys)
 
-    # procurar a solucao
-    def search(self, limit=None):
-        while self.open_nodes != []:
-            print(len(self.open_nodes))
-            node = self.open_nodes.pop(0)
+async def agent_loop(puzzle, solution, server_address="localhost:8000", agent_name="student"):
+    async with websockets.connect(f"ws://{server_address}/player") as websocket:
 
-            #se cheguei a solucao
-            if node.state.completed:
-                print(node.state.__str__())
-                print(self.get_path(node))
-                return self.get_path(node)
+        # Receive information about static game properties
+        await websocket.send(json.dumps({"cmd": "join", "name": agent_name}))
 
-            #como nao cheguei tenho de obter uma lista de possiveis caminhos
-            options = {"d":[1, 0], "a":[-1, 0], "s":[0, 1], "w":[0, -1]}
+        while True:
+            try:
+                update = json.loads(
+                    await websocket.recv()
+                )  # receive game update, this must be called timely or your game will get out of sync with the server
 
-            for key, option in options.items():
-                newmap = self.newmap(node, option)
-                if newmap != None and newmap.__str__() not in self.get_path_str(node):
-                    #calcular como fica o novo mapa com esse movimento
-                    self.open_nodes.append(SearchNode(newmap, node, key))
+                if "map" in update:
+                    # we got a new level
+                    game_properties = update
+                    keys = ""
+                    await puzzle.put(game_properties)
 
-        return None
-    
-    #retorna um novo mapa caso seja um movimento possivel, senao retorna None
-    def newmap(self, node, movement):
-        keeper_coor = node.state.keeper
+                if not solution.empty():
+                    keys = await solution.get()
 
-        #verificar se esta a ir contra uma parede
-        # if node.state.is_blocked([keeper_coor[0]+movement[0], keeper_coor[1]+movement[1]]) or
-        if node.state.get_tile([keeper_coor[0]+movement[0], keeper_coor[1]+movement[1]]).name == TILES["#"].name:
-            return None
-        
-        #verificar se o tile depois do bloco esta vazio
-        if (keeper_coor[0]+movement[0], keeper_coor[1]+movement[1]) in node.state.boxes:
-            #if node.state.is_blocked([keeper_coor[0]+movement[0]*2, keeper_coor[1]+movement[1]*2]) or 
-            if node.state.get_tile([keeper_coor[0]+movement[0]*2, keeper_coor[1]+movement[1]*2]).name not in [TILES['-'].name, TILES['.'].name]:
-                return None
-            else:
-                hitBox = True
-        else:
-            hitBox = False
+                key = ""
+                if len(keys):  # we got a solution!
+                    key = keys[0]
+                    keys = keys[1:]
 
-        newmap = copy.deepcopy(node.state)
+                await websocket.send(
+                    json.dumps({"cmd": "key", "key": key})
+                )
 
-        #print("newmap1")
-        #print(movement)
-        #print(newmap.__str__())
+            except websockets.exceptions.ConnectionClosedOK:
+                print("Server has cleanly disconnected us")
+                return
 
-        if hitBox:
-            tile = newmap.get_tile((keeper_coor[0]+movement[0], keeper_coor[1]+movement[1]))
-            newmap.clear_tile((keeper_coor[0]+movement[0], keeper_coor[1]+movement[1]))
-            newmap.set_tile((keeper_coor[0]+movement[0]*2, keeper_coor[1]+movement[1]*2), tile)
+# DO NOT CHANGE THE LINES BELLOW
+# You can change the default values using the command line, example:
+# $ NAME='arrumador' python3 client.py
+loop = asyncio.get_event_loop()
+SERVER = os.environ.get("SERVER", "localhost")
+PORT = os.environ.get("PORT", "8000")
+NAME = os.environ.get("NAME", getpass.getuser())
 
-        tile = newmap.get_tile(keeper_coor)
-        newmap.clear_tile(keeper_coor)
+puzzle = asyncio.Queue(loop=loop)
+solution = asyncio.Queue(loop=loop)
 
-        newmap.set_tile((keeper_coor[0]+movement[0], keeper_coor[1]+movement[1]), tile)
+net_task = loop.create_task(agent_loop(puzzle, solution, f"{SERVER}:{PORT}", NAME))
+solver_task = loop.create_task(solver(puzzle, solution))
 
-        #print("newmap2")
-        #print(movement)
-        #print(newmap.__str__())
-
-        return newmap
+loop.run_until_complete(asyncio.gather(net_task, solver_task))
+loop.close()
