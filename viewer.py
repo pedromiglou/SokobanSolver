@@ -241,7 +241,7 @@ async def main_loop(queue):
             if new_event:
                 highscores = state["highscores"]
                 highscores.append(
-                    (f"<{state['player']}>", reduce_score(state["score"]))
+                    (f"<{state['player']}>", reduce_score(*state["score"]))
                 )
 
                 highscores = sorted(highscores, key=lambda s: s[1])
