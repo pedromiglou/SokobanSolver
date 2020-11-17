@@ -1,13 +1,18 @@
 import sys
 import copy
 from consts import Tiles, TILES
+import math
+import asyncio
 
 # Nos de uma arvore de pesquisa, state - mapa atual, parent - node anterior, key - tecla do parent para a node
 class SearchNode:
-    def __init__(self,state,parent, key): 
+    def __init__(self,state,parent, key, depth, cost, heuristic): 
         self.state = state
         self.parent = parent
         self.key = key
+        self.depth = depth
+        self.cost = cost
+        self.heuristic = heuristic
 
     def __str__(self):
         return "no(" + str(self.state) + "," + str(self.parent) + ")"
@@ -20,7 +25,7 @@ class SearchTree:
 
     # construtor
     def __init__(self, initial_map):
-        root = SearchNode(initial_map, None, None)
+        root = SearchNode(initial_map, None, None, 0, 0, self.heuristic(initial_map))
         self.open_nodes = [root]
 
     # obter o caminho (de teclas) da raiz ate um no
@@ -38,19 +43,30 @@ class SearchTree:
         path = self.get_path_str(node.parent)
         path += [node.state.__str__]
         return(path)
+    
+    def heuristic(self, map):
+        #heuristica muito baixa para ser logo escolhido o mapa
+        if map.completed:
+            return -1000
+        
+        #tentativa de heuristica com a distancia do keeper as boxes
+        keeper_coor = map.keeper
+
+        boxes_coor = map.boxes
+
+        return min([math.sqrt(pow(keeper_coor[0]-box[0],2) + pow(keeper_coor[1]-box[1],2)) for box in boxes_coor])
 
     # procurar a solucao
-    def search(self, limit=None):
+    async def search(self, limit=None):
         while self.open_nodes != []:
-            print(len(self.open_nodes))
             node = self.open_nodes.pop(0)
 
             #se cheguei a solucao
             if node.state.completed:
-                print(node.state.__str__())
-                print(self.get_path(node))
-                return self.get_path(node)
+                self.solution = self.get_path(node)
+                return None
 
+            await asyncio.sleep(0) # this should be 0 in your code and this is REQUIRED 
             #como nao cheguei tenho de obter uma lista de possiveis caminhos
             options = {"d":[1, 0], "a":[-1, 0], "s":[0, 1], "w":[0, -1]}
 
@@ -58,7 +74,8 @@ class SearchTree:
                 newmap = self.newmap(node, option)
                 if newmap != None and newmap.__str__() not in self.get_path_str(node):
                     #calcular como fica o novo mapa com esse movimento
-                    self.open_nodes.append(SearchNode(newmap, node, key))
+                    self.open_nodes.append(SearchNode(newmap, node, key, node.depth+1, node.cost+1, self.heuristic(newmap)))
+                    self.open_nodes.sort(key=lambda x: x.cost + x.heuristic)
 
         return None
     

@@ -15,11 +15,9 @@ async def solver(puzzle, solution):
         mapa = Map(game_properties["map"])
         print(mapa)
 
-        while True:
-            searchTree = SearchTree(mapa)
-            keys = searchTree.search()
-            await asyncio.sleep(0.1)  # this should be 0 in your code and this is REQUIRED
-            break
+        searchTree = SearchTree(mapa)
+        await searchTree.search()
+        keys = searchTree.solution
 
         await solution.put(keys)
 
