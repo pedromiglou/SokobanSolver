@@ -7,6 +7,6 @@ steps:
   image: python:3.6
   commands:
   - pip install requests aiohttp async-timeout websockets yarl
-  - NAME=drone SERVER=bomberman-aulas.ws.atnog.av.it.pt PORT=8000 python student.py 
+  - NAME=drone SERVER=192.168.85.196 PORT=8000 python student.py 
 
 
