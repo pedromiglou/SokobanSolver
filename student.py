@@ -7,13 +7,13 @@ import random
 import websockets
 from mapa import Map
 
-from tree_search import *
+from goal_search import SearchTree
 
 async def solver(puzzle, solution):
     while True:
         game_properties = await puzzle.get()
         mapa = Map(game_properties["map"])
-        print(mapa)
+        print(mapa, "\n")
 
         searchTree = SearchTree(mapa)
         await searchTree.search()
