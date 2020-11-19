@@ -43,14 +43,14 @@ class SearchAgent:
 		return pow(keeps_pos[0]-self.destination[0], 2) + pow(keeps_pos[1]-self.destination[1], 2)
 
 	def search(self):
-		print("----- Beggining Path Search -----\n")
+		#print("----- Beggining Path Search -----\n")
 		#count = 0
 		while self.open_nodes != []:
 			node = self.open_nodes.pop(0)
 			keeper_pos = (node.state.keeper[0], node.state.keeper[1])
 
 			if keeper_pos == self.destination:
-				print("----- Path Search Done -----\n")
+				#print("----- Path Search Done -----\n")
 				self.solution = node.state
 				return self.get_keys(node)
 			
@@ -85,6 +85,6 @@ class SearchAgent:
 			self.open_nodes.extend(lnewnodes)
 			self.open_nodes.sort(key = lambda x: x.cost)
 
-		print("----- Path Search Failed -----\n")
+		#print("----- Path Search Failed -----\n")
 
 		return None

@@ -16,7 +16,7 @@ class SearchNode:
     def findBoxes(self):
         l = []
         for i in range(self.state.size[0]):
-            for j in range(self.state.size[0]):
+            for j in range(self.state.size[1]):
                 if self.state.get_tile((i,j)).name in [TILES["$"].name, TILES["*"].name]:
                     #print(self.state.get_tile((i,j)).name)
                     l.append((i,j))
@@ -36,7 +36,7 @@ class SearchTree:
     def __init__(self, mapa):
         self.root = SearchNode(mapa, None, "", 0, 0, None)
         self.open_nodes = [self.root]
-        print(mapa._map)
+        #print(mapa._map)
 
     # obter o caminho (de teclas) da raiz ate um no
     def get_path(self,node):
@@ -68,21 +68,48 @@ class SearchTree:
                 h += abs(box[0]-goal[0]) + abs(box[1]-goal[1])
         
         return h
+    
+    def isCornered(self, mapa):
+        boxesPos = mapa.boxes
+        # Positions = (Up, Down, Left Right)
+        positions = [(0, -1), (0, 1), (-1, 0), (1, 0)]
+        #print(boxesPos)
+        for boxPos in boxesPos:
+            # If the box is on goal, it is not considered a cornered box since it could be part of the solution
+            if mapa.get_tile(boxPos) == Tiles.BOX_ON_GOAL:
+                return False
+            #print(box)
+
+            box_upPos = mapa.get_tile( tuple(map( lambda t1, t2: t1 + t2, boxPos, positions[0] )) )
+            box_downPos = mapa.get_tile( tuple(map( lambda t1, t2: t1 + t2, boxPos, positions[1] )) )
+            box_leftPos = mapa.get_tile( tuple(map( lambda t1, t2: t1 + t2, boxPos, positions[2] )) )
+            box_rightPos = mapa.get_tile( tuple(map( lambda t1, t2: t1 + t2, boxPos, positions[3] )) )
+
+            if (box_leftPos == Tiles.WALL) and (box_upPos == Tiles.WALL):
+                return True
+            if (box_upPos == Tiles.WALL) and (box_rightPos == Tiles.WALL):
+                return True
+            if (box_rightPos == Tiles.WALL) and (box_downPos == Tiles.WALL):
+                return True
+            if (box_downPos == Tiles.WALL) and (box_leftPos == Tiles.WALL):
+                return True
+        return False
 
     # procurar a solucao
     async def search(self, limit=None):
-        print("----- Beggining Box Search -----\n")
+        #print("----- Beggining Box Search -----\n")
         count = 0
         while self.open_nodes != []:
             node = self.open_nodes.pop(0)
             count+=1
-            print(count)
-            
+            #print(count)
 
             #se cheguei a solucao
             if node.state.completed:
                 self.solution = self.get_path(node)
-                print("----- Box Search Done -----\n")
+                print(self.solution)
+                print("Number of attempts: ", count, "\n")
+                #print("----- Box Search Done -----\n")
                 return None
 
             await asyncio.sleep(0) # this should be 0 in your code and this is REQUIRED
@@ -95,8 +122,8 @@ class SearchTree:
                 options[(box, "s")] = (0, 1)
                 options[(box, "w")] = (0, -1)
 
-            print(node.state)
-            print()
+            #print(node.state)
+            #print()
             for key, value in options.items():
                 
 
@@ -106,6 +133,7 @@ class SearchTree:
                     #adicionar o novo Node à lista
                     self.open_nodes.append(newnode)
                     self.open_nodes.sort(key=lambda x: x.cost + x.heuristic)
+                    #print(self.open_nodes)
                 #else:
                     #print()
                     #print("rejected")
@@ -113,10 +141,10 @@ class SearchTree:
                     #print(key[0])
                     #print(value)
                     #print()
-            print(node.state)
-            print()
+            #print(node.state)
+            #print()
 
-        print("----- Box Search Failed -----\n")
+        #print("----- Box Search Failed -----\n")
         return None
     
     #retorna um novo mapa caso seja um movimento possivel, senao retorna None
@@ -147,11 +175,11 @@ class SearchTree:
             return None
 
         #fazer uma copia do mapa e das coordenadas das caixas e atualizar ambos -> simular movimento
-        newmap = agentSearch.solution
+        newmap = copy.deepcopy(agentSearch.solution)
 
-        print(node.state) #aqui o node é diferente do print debaixo quando apenas mudamos no newmap
-        print(newmap)
-        print()
+        #print(node.state) #aqui o node é diferente do print debaixo quando apenas mudamos no newmap
+        #print(newmap)
+        #print()
         # Mover a caixa...
         tile = newmap.get_tile(box)
         newmap.set_tile([box[0]+movement[0], box[1]+movement[1]], tile)
@@ -160,9 +188,9 @@ class SearchTree:
         #print(box)
         #print(movement)
         #print(tile)
-        print(node.state)
-        print(newmap)
-        print()
+        #print(node.state)
+        #print(newmap)
+        #print()
 
         # Mover o keeper...
         keeperCoord = newmap.keeper
@@ -172,6 +200,8 @@ class SearchTree:
 
         #print(newmap)
         if newmap.__str__() in self.get_path_str(node):
+            return None
+        if self.isCornered(newmap):
             return None
 
         newnode = SearchNode(newmap, node, keys+key, node.depth+1, node.cost+1, self.heuristic(newmap))
