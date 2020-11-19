@@ -5,17 +5,27 @@ from agent_search import SearchAgent
 
 # No de uma arvore de pesquisa
 class SearchNode:
-    def __init__(self, state, boxes, parent, key, depth, cost, heuristic): 
+    def __init__(self, state, parent, key, depth, cost, heuristic): 
         self.state = state #mapa
-        self.boxes = boxes #coordenadas das caixas
         self.parent = parent
         self.keys = key
         self.depth = depth
         self.cost = cost
         self.heuristic = heuristic
+    
+    def findBoxes(self):
+        l = []
+        for i in range(self.state.size[0]):
+            for j in range(self.state.size[0]):
+                if self.state.get_tile((i,j)).name in [TILES["$"].name, TILES["*"].name]:
+                    #print(self.state.get_tile((i,j)).name)
+                    l.append((i,j))
+        return l
+
 
     def __str__(self):
         return "no(" + str(self.state) + "," + str(self.parent) + ")"
+
     def __repr__(self):
         return str(self)
 
@@ -24,8 +34,9 @@ class SearchTree:
 
     # construtor
     def __init__(self, mapa):
-        self.root = SearchNode(mapa, [list(tup) for tup in mapa.boxes], None, "", 0, 0, None)
+        self.root = SearchNode(mapa, None, "", 0, 0, None)
         self.open_nodes = [self.root]
+        print(mapa._map)
 
     # obter o caminho (de teclas) da raiz ate um no
     def get_path(self,node):
@@ -60,53 +71,68 @@ class SearchTree:
 
     # procurar a solucao
     async def search(self, limit=None):
-        #print("----- Beggining Search -----\n")
+        print("----- Beggining Box Search -----\n")
         count = 0
         while self.open_nodes != []:
             node = self.open_nodes.pop(0)
             count+=1
             print(count)
-            #print(node.state)
+            
 
             #se cheguei a solucao
             if node.state.completed:
                 self.solution = self.get_path(node)
-                #print(self.node.keys)
-                print("Cheguei à solução")
+                print("----- Box Search Done -----\n")
                 return None
 
             await asyncio.sleep(0) # this should be 0 in your code and this is REQUIRED
 
             #como nao cheguei tenho de obter uma lista de possiveis movimentos das caixas
             options = dict()
-            for i in range(len(node.boxes)):
-                options[(i, "d")] = [1, 0]
-                options[(i, "a")] = [-1, 0]
-                options[(i, "s")] = [0, 1]
-                options[(i, "w")] = [0, -1]
+            for box in node.findBoxes():
+                options[(box, "d")] = (1, 0)
+                options[(box, "a")] = (-1, 0)
+                options[(box, "s")] = (0, 1)
+                options[(box, "w")] = (0, -1)
 
+            print(node.state)
+            print()
             for key, value in options.items():
+                
+
                 newnode = self.newNode(node, key[0], key[1], value)
                 if newnode != None:
-                    #print("----- Adding Node to Open Nodes -----\n")
+                    #print("acepted")
                     #adicionar o novo Node à lista
                     self.open_nodes.append(newnode)
                     self.open_nodes.sort(key=lambda x: x.cost + x.heuristic)
-                    #print(self.open_nodes)
+                #else:
+                    #print()
+                    #print("rejected")
+                    #print(node.state)
+                    #print(key[0])
+                    #print(value)
+                    #print()
+            print(node.state)
+            print()
+
+        print("----- Box Search Failed -----\n")
         return None
     
     #retorna um novo mapa caso seja um movimento possivel, senao retorna None
-    def newNode(self, node, box_id, key, movement):
-        box = node.boxes[box_id]
-
+    def newNode(self, node, box, key, movement):
         #verificar se esta a ir contra uma parede ou caixa e verificar se o lugar do keeper esta vazio
         newTile = node.state.get_tile([box[0]+movement[0], box[1]+movement[1]]).name
         keeperTile = node.state.get_tile([box[0]-movement[0], box[1]-movement[1]]).name
         #print("keeper: ", keeperTile)
         #print("newTile: ", newTile)
-        #print(not all([tile not in [TILES["#"].name, TILES["$"].name, TILES["*"].name] for tile in [keeperTile, newTile]]))
+        #print([TILES["#"].name, TILES["$"].name, TILES["*"].name])
 
-        if not all([tile not in [TILES["#"].name, TILES["$"].name, TILES["*"].name] for tile in [keeperTile, newTile]]):
+        if any([tile in [TILES["#"].name, TILES["$"].name, TILES["*"].name] for tile in [keeperTile, newTile]]):
+            #print("-----------")
+            #print(newTile)
+            #print(keeperTile)
+            #print("---------------")
             return None
         
         #print("----- Calling Search Agent -----\n")
@@ -115,23 +141,28 @@ class SearchTree:
         keys = agentSearch.search()
         
         if keys == None:
+            #print(node.state)
+            #print(box)
+            #print(movement)
             return None
 
         #fazer uma copia do mapa e das coordenadas das caixas e atualizar ambos -> simular movimento
         newmap = agentSearch.solution
-        boxes = copy.deepcopy(node.boxes)
 
-        boxes[box_id][0] += movement[0]
-        boxes[box_id][1] += movement[1]
-
+        print(node.state) #aqui o node é diferente do print debaixo quando apenas mudamos no newmap
+        print(newmap)
+        print()
         # Mover a caixa...
         tile = newmap.get_tile(box)
+        newmap.set_tile([box[0]+movement[0], box[1]+movement[1]], tile)
         #print("\n", newmap, "\n")
         newmap.clear_tile(box)
         #print(box)
         #print(movement)
         #print(tile)
-        newmap.set_tile(( boxes[box_id][0], boxes[box_id][1] ), tile)
+        print(node.state)
+        print(newmap)
+        print()
 
         # Mover o keeper...
         keeperCoord = newmap.keeper
@@ -139,12 +170,10 @@ class SearchTree:
         newmap.clear_tile(keeperCoord)
         newmap.set_tile(box, tile)
 
-
-        #provavelmente preciso de mudar a posicao do keeper, maybe receber mapa do AgentSearch
         #print(newmap)
         if newmap.__str__() in self.get_path_str(node):
             return None
 
-        newnode = SearchNode(newmap, boxes, node, keys+key, node.depth+1, node.cost+1, self.heuristic(newmap))
+        newnode = SearchNode(newmap, node, keys+key, node.depth+1, node.cost+1, self.heuristic(newmap))
         #print(self.get_path(newnode))
         return newnode
