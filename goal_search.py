@@ -108,6 +108,7 @@ class SearchTree:
             if node.state.completed:
                 self.solution = self.get_path(node)
                 print(self.solution)
+                #print(node.state)
                 print("Number of attempts: ", count, "\n")
                 #print("----- Box Search Done -----\n")
                 return None
@@ -204,6 +205,6 @@ class SearchTree:
         if self.isCornered(newmap):
             return None
 
-        newnode = SearchNode(newmap, node, keys+key, node.depth+1, node.cost+1, self.heuristic(newmap))
+        newnode = SearchNode(newmap, node, keys+key, node.depth+1, node.cost+len(node.state.boxes), self.heuristic(newmap))
         #print(self.get_path(newnode))
         return newnode
