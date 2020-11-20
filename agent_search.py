@@ -3,6 +3,7 @@ import copy
 from operator import add
 from mapa import *
 from consts import Tiles, TILES
+import asyncio
 
 class AgentNode:
 	def __init__(self, state, parent, key):
@@ -42,7 +43,7 @@ class SearchAgent:
 	def heuristic(self, keeps_pos):
 		return pow(keeps_pos[0]-self.destination[0], 2) + pow(keeps_pos[1]-self.destination[1], 2)
 
-	def search(self):
+	async def search(self):
 		#print("----- Beggining Path Search -----\n")
 		#count = 0
 		while self.open_nodes != []:
@@ -56,6 +57,8 @@ class SearchAgent:
 			
 			moves = {"d":[1, 0], "a":[-1, 0], "s":[0, 1], "w":[0, -1]}
 			lnewnodes = []
+
+			await asyncio.sleep(0) # this should be 0 in your code and this is REQUIRED
 
 			for key in moves:
 				new_keeper_pos = [node.state.keeper[0]+moves[key][0], node.state.keeper[1]+moves[key][1]]
