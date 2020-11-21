@@ -1,0 +1,3 @@
+cd trabalho-de-grupo-sokoban-93118_93221_93283/; source venv/bin/activate; clear; python3 server.py
+
+cd trabalho-de-grupo-sokoban-93118_93221_93283/; source venv/bin/activate; clear; python3 student.py
