@@ -7,6 +7,7 @@ from agent_search import SearchAgent
 class SearchNode:
     def __init__(self, state, parent, key, depth, cost, heuristic): 
         self.state = state #mapa
+        self.reducedState = str(sorted(self.state.boxes)) + str(self.state.keeper)
         self.parent = parent
         self.keys = key
         self.depth = depth
@@ -16,8 +17,8 @@ class SearchNode:
     def __str__(self):
         return "no(" + str(self.state) + "," + str(self.parent) + ")"
 
-    def __repr__(self):
-        return str(self)
+    # def reduced_State(self):
+    #    return str(sorted(self.state.boxes)) + str(self.state.keeper) #if self.reducedState == "" else self.reducedState
 
 # Arvore de pesquisa
 class SearchTree:
@@ -34,19 +35,23 @@ class SearchTree:
         else:
             return self.get_path(node.parent) + node.keys
     
-    # obter o caminho da raiz ate um no
-    def get_path_str(self,node):
-        if node.parent == None:
-            return [node.state.__str__()]
-        path = self.get_path_str(node.parent)
-        path += [node.state.__str__()]
-        return(path)
+    # analisar se um estado anterior é igual ao atual
+    def state_in_path(self, node, newstate):
+        if node.reducedState == newstate:
+            return True
+        else:
+            if node.parent != None:
+                return self.state_in_path(node.parent, newstate)
+            else:
+                return False
     
     # calculo da heuristica
     def heuristic(self, map):
         boxes_coor = map.boxes
-
         goals_coor = map.empty_goals
+
+        #if len(boxes_coor) > len(goals_coor):
+        #    boxes_coor = [x for x in boxes_coor if map.get_tile(x) != Tiles.MAN_ON_GOAL]
 
         if len(goals_coor) == 0:
             return 0
@@ -55,7 +60,7 @@ class SearchTree:
         for box in boxes_coor:
             for goal in goals_coor:
                 h += abs(box[0]-goal[0]) + abs(box[1]-goal[1])
-        
+
         return h
     
     def isCornered(self, mapa):
@@ -139,12 +144,20 @@ class SearchTree:
                 newmap.clear_tile(keeperCoord)
                 newmap.set_tile(box, tile)
 
-                if newmap.__str__() in self.get_path_str(node):
+                if self.state_in_path(node, str(sorted(newmap.boxes)) + str(newmap.keeper)):
                     continue
                 if self.isCornered(newmap):
                     continue
 
                 newnode = SearchNode(newmap, node, keys+key, node.depth+1, node.cost+len(node.state.boxes), self.heuristic(newmap))
+
+                #encontrou um túnel
+                #if movement[0] == 0: #andou em y
+                #    if node.state.get_tile([box[0]+1, box[1]+movement[1]]) == Tiles.WALL and node.state.get_tile([box[0]-1, box[1]+movement[1]]) == Tiles.WALL:
+                #        newnode.keys += newnode.keys[-1]
+                #else:
+                #    if node.state.get_tile([box[0]+movement[0], box[1]+1]) == Tiles.WALL and node.state.get_tile([box[0]+movement[0], box[1]-1]) == Tiles.WALL:
+                #        newnode.keys += newnode.keys[-1]
 
                 #adicionar o novo Node à lista
                 self.open_nodes.append(newnode)
