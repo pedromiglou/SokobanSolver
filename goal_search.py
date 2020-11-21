@@ -1,7 +1,8 @@
-import copy
-from consts import Tiles, TILES
+from copy import deepcopy
+from consts import Tiles
 import asyncio
 from agent_search import SearchAgent
+from bisect import insort_left
 
 # No de uma arvore de pesquisa
 class SearchNode:
@@ -17,8 +18,9 @@ class SearchNode:
     def __str__(self):
         return "no(" + str(self.state) + "," + str(self.parent) + ")"
 
-    # def reduced_State(self):
-    #    return str(sorted(self.state.boxes)) + str(self.state.keeper) #if self.reducedState == "" else self.reducedState
+    #funcao para fazer sort sem usar sempre key
+    def __lt__(self, other):
+        return self.cost + self.heuristic < other.cost + other.heuristic
 
 # Arvore de pesquisa
 class SearchTree:
@@ -30,11 +32,11 @@ class SearchTree:
         self.defineWalls(mapa)
 
     # obter o caminho (de teclas) da raiz ate um no
-    def get_path(self,node):
+    def get_keys(self,node):
         if node.parent == None:
             return node.keys
         else:
-            return self.get_path(node.parent) + node.keys
+            return self.get_keys(node.parent) + node.keys
     
     # analisar se um estado anterior é igual ao atual
     def state_in_path(self, node, newstate):
@@ -133,14 +135,12 @@ class SearchTree:
         while self.open_nodes != []:
             node = self.open_nodes.pop(0)
             count+=1
-            #print(count)detiuaveiro 
+            #print(count)
 
             #se cheguei a solucao
             if node.state.completed:
-                self.solution = self.get_path(node)
-                #print(self.solution)
                 print("Number of attempts: ", count, "\n")
-                return None
+                return self.get_keys(node)
 
             await asyncio.sleep(0) # this should be 0 in your code and this is REQUIRED
 
@@ -167,28 +167,26 @@ class SearchTree:
                     continue
 
                 #verificar se ha um caminho para o keeper
-                agentSearch = SearchAgent(node.state, newKeeperPos)
+                agentSearch = SearchAgent(deepcopy(node.state), newKeeperPos)
                 keys = await agentSearch.search()
                 
                 if keys == None:
                     continue
 
                 #fazer uma copia do mapa e das coordenadas das caixas e atualizar ambos -> simular movimento
-                newmap = copy.deepcopy(agentSearch.solution)
+                newmap = deepcopy(agentSearch.map)
 
                 # Mover a caixa...
-                #tile = newmap.get_tile(box)
                 newmap.set_tile(newBoxPos, Tiles.BOX)
                 newmap.clear_tile(box)
 
                 # Mover o keeper...
-                keeperCoord = newmap.keeper
-                #tile = newmap.get_tile(keeperCoord)
-                newmap.clear_tile(keeperCoord)
+                newmap.clear_tile(newKeeperPos)
                 newmap.set_tile(box, Tiles.MAN)
 
                 if self.state_in_path(node, str(sorted(newmap.boxes)) + str(newmap.keeper)):
                     continue
+
                 if self.isCornered(newmap, newBoxPos):
                     continue
 
@@ -205,9 +203,8 @@ class SearchTree:
                 #    if node.state.get_tile([box[0]+movement[0], box[1]+1]) == Tiles.WALL and node.state.get_tile([box[0]+movement[0], box[1]-1]) == Tiles.WALL:
                 #        newnode.keys += newnode.keys[-1]
 
-                #adicionar o novo Node à lista
-                self.open_nodes.append(newnode)
-                self.open_nodes.sort(key=lambda x: x.cost + x.heuristic)
+                #adicionar o novo Node à lista e sort ao mesmo tempo
+                insort_left(self.open_nodes, newnode)
 
         print("----- Box Search Failed -----\n")
         return None

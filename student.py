@@ -16,8 +16,7 @@ async def solver(puzzle, solution):
         print(mapa, "\n")
 
         searchTree = SearchTree(mapa)
-        await searchTree.search()
-        keys = searchTree.solution
+        keys = await searchTree.search()
 
         await solution.put(keys)
 
