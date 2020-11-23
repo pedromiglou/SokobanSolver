@@ -8,7 +8,7 @@ from bisect import insort_left
 class SearchNode:
     def __init__(self, state, parent, key, depth, cost, heuristic): 
         self.state = state #mapa
-        self.reducedState = str(sorted(self.state.boxes)) + str(self.state.keeper)
+        #self.reducedState = str(sorted(self.state.boxes)) + str(self.state.keeper)
         self.parent = parent
         self.keys = key
         self.depth = depth
@@ -27,9 +27,11 @@ class SearchTree:
 
     # construtor
     def __init__(self, mapa):
-        self.root = SearchNode(mapa, None, "", 0, 0, None)
+        self.root = SearchNode((set(mapa.boxes), mapa.keeper), None, "", 0, 0, None)
+        self.mapa = mapa
         self.open_nodes = [self.root]
-        self.defineWalls(mapa)
+        self.defineWalls()
+        self.visitedNodes = set()
 
     # obter o caminho (de teclas) da raiz ate um no
     def get_keys(self,node):
@@ -40,7 +42,8 @@ class SearchTree:
     
     # analisar se um estado anterior é igual ao atual
     def state_in_path(self, node, newstate):
-        if node.reducedState == newstate:
+        if node.state == newstate:
+            #print(node.state[0], " == ", newstate)
             return True
         else:
             if node.parent != None:
@@ -49,34 +52,34 @@ class SearchTree:
                 return False
     
     # calculo da heuristica
-    def heuristic(self, map):
-        boxes_coor = map.boxes
-        goals_coor = map.empty_goals
+    def heuristic(self, boxes):
+        goals = self.mapa.filter_tiles([Tiles.GOAL, Tiles.BOX_ON_GOAL, Tiles.MAN_ON_GOAL])
+        goals = [goal for goal in goals if goal not in boxes]
 
-        #if len(boxes_coor) > len(goals_coor):
+        #if len(boxes_coor) > len(goals):
         #    boxes_coor = [x for x in boxes_coor if map.get_tile(x) != Tiles.MAN_ON_GOAL]
 
-        if len(goals_coor) == 0:
+        if len(goals) == 0:
             return 0
 
         h = 1
-        for box in boxes_coor:
-            for goal in goals_coor:
+        for box in boxes:
+            for goal in goals:
                 h += abs(box[0]-goal[0]) + abs(box[1]-goal[1])
 
         return h
     
-    def isCornered(self, mapa, boxPos):
+    def isCornered(self, boxPos):
 
         # If the box is on goal, it is not considered a cornered box since it could be part of the solution
-        if mapa.get_tile(boxPos) == Tiles.BOX_ON_GOAL:
+        if self.mapa.get_tile(boxPos) == Tiles.GOAL or self.mapa.get_tile(boxPos) == Tiles.BOX_ON_GOAL:
             return False
             
         # Positions = (Up, Down, Left Right)
-        box_upPos = mapa.get_tile( tuple(map( lambda t1, t2: t1 + t2, boxPos, (0, -1) )) )
-        box_downPos = mapa.get_tile( tuple(map( lambda t1, t2: t1 + t2, boxPos, (0, 1) )) )
-        box_leftPos = mapa.get_tile( tuple(map( lambda t1, t2: t1 + t2, boxPos, (-1, 0) )) )
-        box_rightPos = mapa.get_tile( tuple(map( lambda t1, t2: t1 + t2, boxPos, (1, 0) )) )
+        box_upPos = self.mapa.get_tile( tuple(map( lambda t1, t2: t1 + t2, boxPos, (0, -1) )) )
+        box_downPos = self.mapa.get_tile( tuple(map( lambda t1, t2: t1 + t2, boxPos, (0, 1) )) )
+        box_leftPos = self.mapa.get_tile( tuple(map( lambda t1, t2: t1 + t2, boxPos, (-1, 0) )) )
+        box_rightPos = self.mapa.get_tile( tuple(map( lambda t1, t2: t1 + t2, boxPos, (1, 0) )) )
 
         if (box_leftPos == Tiles.WALL) and (box_upPos == Tiles.WALL):
             return True
@@ -89,11 +92,11 @@ class SearchTree:
 
         return False
 
-    def isWalled(self, mapa, boxPos):
+    def isWalled(self, boxPos):
         if not (self.leftBlock or self.upBlock or self.botBlock or self.rightBlock):
             return False
 
-        dim = mapa.size
+        dim = self.mapa.size
 
         # Check if the box position in a blocked wall
         if boxPos[0] == 1 and self.leftBlock:
@@ -108,8 +111,8 @@ class SearchTree:
         return False
         
 
-    def defineWalls(self, mapa):
-        dim = mapa.size
+    def defineWalls(self):
+        dim = self.mapa.size
 
         # All walls start out as blocked, meaning they don't have goals and the box should never reach them
         self.leftBlock = True
@@ -118,7 +121,7 @@ class SearchTree:
         self.botBlock = True
 
         # If there is a goal on a certain border, that border will no longer be blocked
-        for goalPos in mapa.filter_tiles([ Tiles.GOAL, Tiles.BOX_ON_GOAL, Tiles.MAN_ON_GOAL ]):
+        for goalPos in self.mapa.filter_tiles([ Tiles.GOAL, Tiles.BOX_ON_GOAL, Tiles.MAN_ON_GOAL ]):
             if goalPos[0] == 1:
                 self.leftBlock = False
             if goalPos[1] == 1:
@@ -138,62 +141,103 @@ class SearchTree:
             #print(count)
 
             #se cheguei a solucao
-            if node.state.completed:
+            if all([self.mapa.get_tile(coord) in [Tiles.BOX_ON_GOAL, Tiles.GOAL, Tiles.MAN_ON_GOAL] for coord in node.state[0]]):
+                #print(node.state)
                 print("Number of attempts: ", count, "\n")
+                print(self.get_keys(node))
                 return self.get_keys(node)
+
+            #if node.state.completed:
+            #    print("Number of attempts: ", count, "\n")
+            #    return self.get_keys(node)
 
             await asyncio.sleep(0) # this should be 0 in your code and this is REQUIRED
 
             #como nao cheguei tenho de obter uma lista de possiveis movimentos das caixas
             options = dict()
-            for box in node.state.boxes:
+            for box in node.state[0]:
                 options[(box, "d")] = (1, 0)
                 options[(box, "a")] = (-1, 0)
                 options[(box, "s")] = (0, 1)
                 options[(box, "w")] = (0, -1)
+            
 
             for key, movement in options.items():
-                box = key[0]
+                currBoxPos = key[0]
                 key = key[1]
 
-                newBoxPos = (box[0]+movement[0], box[1]+movement[1])
-                newKeeperPos = (box[0]-movement[0], box[1]-movement[1])
+                currMap = deepcopy(self.mapa)
+                # Clear old box positions
+                for tile in self.mapa.filter_tiles([Tiles.BOX, Tiles.BOX_ON_GOAL, Tiles.MAN, Tiles.MAN_ON_GOAL]):
+                    currMap.clear_tile(tile)
+                # Set current node box positions
+                #print("\n", currMap)
+                for b in node.state[0]:
+                    currMap.set_tile(b, Tiles.BOX)
+                # Set current keeper position
+                currMap.set_tile(node.state[1], Tiles.MAN)
+                #print(currMap, "\n")
+                if count == 2:
+                    pass
+
+                newBoxPos = (currBoxPos[0]+movement[0], currBoxPos[1]+movement[1])
+                newKeeperPos = (currBoxPos[0]-movement[0], currBoxPos[1]-movement[1])
 
                 #verificar se esta a ir contra uma parede ou caixa e verificar se o lugar do keeper esta vazio
-                newTile = node.state.get_tile(newBoxPos)
-                keeperTile = node.state.get_tile(newKeeperPos)
+                newTile = currMap.get_tile(newBoxPos)
+                keeperTile = currMap.get_tile(newKeeperPos)
 
                 if any([tile in [Tiles.BOX, Tiles.BOX_ON_GOAL, Tiles.WALL] for tile in [keeperTile, newTile]]):
                     continue
 
                 #verificar se ha um caminho para o keeper
-                agentSearch = SearchAgent(deepcopy(node.state), newKeeperPos)
+                agentSearch = SearchAgent(currMap, newKeeperPos)
+                #print(newKeeperPos)
+                #print(currMap)
                 keys = await agentSearch.search()
                 
                 if keys == None:
                     continue
+                #print(keys)
+                #print()
+                #print()
+
+                newBoxes = [b for b in node.state[0] if b != currBoxPos]
+                newBoxes.append(newBoxPos)
 
                 #fazer uma copia do mapa e das coordenadas das caixas e atualizar ambos -> simular movimento
-                newmap = deepcopy(agentSearch.map)
+                #newmap = deepcopy(agentSearch.map)
 
                 # Mover a caixa...
-                newmap.set_tile(newBoxPos, Tiles.BOX)
-                newmap.clear_tile(box)
+
+                currMap.set_tile(newBoxPos, Tiles.BOX)
+                currMap.clear_tile(currBoxPos)
 
                 # Mover o keeper...
-                newmap.clear_tile(newKeeperPos)
-                newmap.set_tile(box, Tiles.MAN)
+                currMap.clear_tile(newKeeperPos)
+                currMap.set_tile(currBoxPos, Tiles.MAN)
+                #print()
+                #print(currMap)
 
-                if self.state_in_path(node, str(sorted(newmap.boxes)) + str(newmap.keeper)):
+                if (frozenset(newBoxes), currBoxPos) in self.visitedNodes:
+                    continue
+                else:
+                    self.visitedNodes.add((frozenset(newBoxes), currBoxPos))
+
+                if self.state_in_path(node, (set(newBoxes), currBoxPos)):
+                    #print("Check1")
                     continue
 
-                if self.isCornered(newmap, newBoxPos):
+                if self.isCornered(newBoxPos):
+                    #print("Check2")
                     continue
 
-                if self.isWalled(newmap, newBoxPos):
+                if self.isWalled(newBoxPos):
+                    #print("Check3")
                     continue
-
-                newnode = SearchNode(newmap, node, keys+key, node.depth+1, node.cost+len(node.state.boxes), self.heuristic(newmap))
+                #print(currMap)
+                #print()
+                newnode = SearchNode((set(newBoxes), currBoxPos), node, keys+key, node.depth+1, node.cost+len(newBoxes), self.heuristic(newBoxes))
 
                 #encontrou um túnel
                 #if movement[0] == 0: #andou em y
