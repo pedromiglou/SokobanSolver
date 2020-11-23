@@ -21,10 +21,11 @@ class AgentNode:
 
 
 class SearchAgent:
-	def __init__(self, initial_map, destination):
+	def __init__(self, initial_map, boxes, initial_pos, destination):
 		self.map = initial_map
+		self.boxes = boxes
 		self.destination = destination
-		root = AgentNode(initial_map.keeper, None, None, 0, 0, self.heuristic(initial_map.keeper))
+		root = AgentNode(initial_pos, None, None, 0, 0, None)
 		self.open_nodes = [root]
 
 	def state_in_path(self, node, newstate):
@@ -51,10 +52,6 @@ class SearchAgent:
 			node = self.open_nodes.pop(0)
 
 			if node.state == self.destination:
-				if self.map.keeper != node.state:
-					self.map.clear_tile(self.map.keeper)
-					self.map.set_tile(node.state, Tiles.MAN)
-
 				return self.get_keys(node)
 			
 			moves = {"d":[1, 0], "a":[-1, 0], "s":[0, 1], "w":[0, -1]}
@@ -63,11 +60,9 @@ class SearchAgent:
 
 			for key in moves:
 				new_keeper_pos = (node.state[0]+moves[key][0], node.state[1]+moves[key][1])
-
-				new_tile = self.map.get_tile(new_keeper_pos)
 				
 				# Se a posição não estiver bloqueada
-				if not self.map.is_blocked(new_keeper_pos) and new_tile != Tiles.BOX and new_tile != Tiles.BOX_ON_GOAL:
+				if not self.map.is_blocked(new_keeper_pos) and new_keeper_pos not in self.boxes:
 
 					# não podem haver dois conjuntos de coordenadas iguais na solução
 					if not self.state_in_path(node, new_keeper_pos):

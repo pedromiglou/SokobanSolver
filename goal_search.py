@@ -32,6 +32,7 @@ class SearchTree:
         self.open_nodes = [self.root]
         self.defineWalls()
         self.visitedNodes = set()
+        self.goals = self.mapa.filter_tiles([Tiles.GOAL, Tiles.BOX_ON_GOAL, Tiles.MAN_ON_GOAL])
 
     # obter o caminho (de teclas) da raiz ate um no
     def get_keys(self,node):
@@ -53,8 +54,7 @@ class SearchTree:
     
     # calculo da heuristica
     def heuristic(self, boxes):
-        goals = self.mapa.filter_tiles([Tiles.GOAL, Tiles.BOX_ON_GOAL, Tiles.MAN_ON_GOAL])
-        goals = [goal for goal in goals if goal not in boxes]
+        goals = [goal for goal in self.goals if goal not in boxes]
 
         #if len(boxes_coor) > len(goals):
         #    boxes_coor = [x for x in boxes_coor if map.get_tile(x) != Tiles.MAN_ON_GOAL]
@@ -62,7 +62,7 @@ class SearchTree:
         if len(goals) == 0:
             return 0
 
-        h = 1
+        h = 0
         for box in boxes:
             for goal in goals:
                 h += abs(box[0]-goal[0]) + abs(box[1]-goal[1])
@@ -166,16 +166,16 @@ class SearchTree:
                 currBoxPos = key[0]
                 key = key[1]
 
-                currMap = deepcopy(self.mapa)
+                #currMap = deepcopy(self.mapa)
                 # Clear old box positions
-                for tile in self.mapa.filter_tiles([Tiles.BOX, Tiles.BOX_ON_GOAL, Tiles.MAN, Tiles.MAN_ON_GOAL]):
-                    currMap.clear_tile(tile)
+                #for tile in self.mapa.filter_tiles([Tiles.BOX, Tiles.BOX_ON_GOAL, Tiles.MAN, Tiles.MAN_ON_GOAL]):
+                #    currMap.clear_tile(tile)
                 # Set current node box positions
                 #print("\n", currMap)
-                for b in node.state[0]:
-                    currMap.set_tile(b, Tiles.BOX)
+                #for b in node.state[0]:
+                #    currMap.set_tile(b, Tiles.BOX)
                 # Set current keeper position
-                currMap.set_tile(node.state[1], Tiles.MAN)
+                #currMap.set_tile(node.state[1], Tiles.MAN)
                 #print(currMap, "\n")
                 if count == 2:
                     pass
@@ -184,14 +184,17 @@ class SearchTree:
                 newKeeperPos = (currBoxPos[0]-movement[0], currBoxPos[1]-movement[1])
 
                 #verificar se esta a ir contra uma parede ou caixa e verificar se o lugar do keeper esta vazio
-                newTile = currMap.get_tile(newBoxPos)
-                keeperTile = currMap.get_tile(newKeeperPos)
+                newTile = self.mapa.get_tile(newBoxPos)
+                keeperTile = self.mapa.get_tile(newKeeperPos)
 
-                if any([tile in [Tiles.BOX, Tiles.BOX_ON_GOAL, Tiles.WALL] for tile in [keeperTile, newTile]]):
+                if any([tile == Tiles.WALL for tile in [keeperTile, newTile]]):
+                    continue
+
+                if newBoxPos in node.state[0] or newKeeperPos in node.state[0]:
                     continue
 
                 #verificar se ha um caminho para o keeper
-                agentSearch = SearchAgent(currMap, newKeeperPos)
+                agentSearch = SearchAgent(self.mapa, node.state[0], node.state[1], newKeeperPos)
                 #print(newKeeperPos)
                 #print(currMap)
                 keys = await agentSearch.search()
@@ -210,12 +213,12 @@ class SearchTree:
 
                 # Mover a caixa...
 
-                currMap.set_tile(newBoxPos, Tiles.BOX)
-                currMap.clear_tile(currBoxPos)
+                #currMap.set_tile(newBoxPos, Tiles.BOX)
+                #currMap.clear_tile(currBoxPos)
 
                 # Mover o keeper...
-                currMap.clear_tile(newKeeperPos)
-                currMap.set_tile(currBoxPos, Tiles.MAN)
+                #currMap.clear_tile(newKeeperPos)
+                #currMap.set_tile(currBoxPos, Tiles.MAN)
                 #print()
                 #print(currMap)
 
@@ -224,9 +227,9 @@ class SearchTree:
                 else:
                     self.visitedNodes.add((frozenset(newBoxes), currBoxPos))
 
-                if self.state_in_path(node, (set(newBoxes), currBoxPos)):
+                #if self.state_in_path(node, (set(newBoxes), currBoxPos)):
                     #print("Check1")
-                    continue
+                #    continue
 
                 if self.isCornered(newBoxPos):
                     #print("Check2")
@@ -237,7 +240,7 @@ class SearchTree:
                     continue
                 #print(currMap)
                 #print()
-                newnode = SearchNode((set(newBoxes), currBoxPos), node, keys+key, node.depth+1, node.cost+len(newBoxes), self.heuristic(newBoxes))
+                newnode = SearchNode((frozenset(newBoxes), currBoxPos), node, keys+key, node.depth+1, node.cost+1, self.heuristic(newBoxes))
 
                 #encontrou um túnel
                 #if movement[0] == 0: #andou em y
