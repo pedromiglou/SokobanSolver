@@ -1,4 +1,4 @@
-from copy import deepcopy
+from copy import deepcopy, copy
 from consts import Tiles
 import asyncio
 from agent_search import SearchAgent
@@ -97,7 +97,31 @@ class SearchTree:
                     if bestcost[0] > cost + l[row][i]:
                         bestcost[0] = cost + l[row][i]
 
-    
+    '''
+    async def computeLowerBound(self, mapa):
+        keeperPos = mapa.keeper
+        mapa.clear_tile(keeperPos)
+        boxes = mapa.filter_tiles([Tiles.BOX, Tiles.BOX_ON_GOAL])
+        goals = mapa.filter_tiles([Tiles.GOAL, Tiles.BOX_ON_GOAL, Tiles.MAN_ON_GOAL])
+        results = []
+        
+        n = 0
+        for box in boxes:
+            auxMapa = deepcopy(mapa)
+
+            for x in [b for b in boxes if b != box]:
+                auxMapa.clear_tile(x)
+            aux = []
+            for goal in goals:
+                auxSearch = SearchAgent(auxMapa, (), box, goal)
+                path = await auxSearch.search()
+                aux.append(len(path))
+                #results.insert(n, results[n] + [len(path)])
+            n+=1
+            results.append(aux)
+        
+        return sum([min(a) for a in results])
+    '''
     def isCornered(self, boxPos):
 
         # If the box is on goal, it is not considered a cornered box since it could be part of the solution
@@ -137,6 +161,50 @@ class SearchTree:
         if boxPos[1] == (dim[1] - 2) and self.botBlock:
             return True
 
+        return False
+    
+    def isBoxed(self, newBoxPos, allBoxPos):
+        x = newBoxPos[0]
+        y = newBoxPos[1]
+        if self.mapa.get_tile(newBoxPos) in [Tiles.GOAL, Tiles.BOX_ON_GOAL]:
+            return False
+
+        # If the position directly above is a wall...
+        if self.mapa.get_tile((x, y-1)) == Tiles.WALL:
+            if (x-1, y) in allBoxPos:
+                if (self.mapa.get_tile((x-1, y-1))) == Tiles.WALL:
+                    return True
+            if (x+1, y) in allBoxPos:
+                if (self.mapa.get_tile((x+1, y-1))) == Tiles.WALL:
+                    return True
+
+        # If the position directly bellow is a wall...
+        if self.mapa.get_tile((x, y+1)) == Tiles.WALL:
+            if (x-1, y) in allBoxPos:
+                if (self.mapa.get_tile((x-1, y+1))) == Tiles.WALL:
+                    return True
+            if (x+1, y) in allBoxPos:
+                if (self.mapa.get_tile((x+1, y+1))) == Tiles.WALL:
+                    return True
+
+        # If the position to the left is a wall...
+        if self.mapa.get_tile((x-1, y)) == Tiles.WALL:
+            if (x, y-1) in allBoxPos:
+                if (self.mapa.get_tile((x-1, y-1))) == Tiles.WALL:
+                    return True
+            if (x, y+1) in allBoxPos:
+                if (self.mapa.get_tile((x-1, y+1))) == Tiles.WALL:
+                    return True
+
+        # If the position to the right is a wall...
+        if self.mapa.get_tile((x+1, y)) == Tiles.WALL:
+            if (x, y-1) in allBoxPos:
+                if (self.mapa.get_tile((x+1, y-1))) == Tiles.WALL:
+                    return True
+            if (x, y+1) in allBoxPos:
+                if (self.mapa.get_tile((x+1, y+1))) == Tiles.WALL:
+                    return True
+        
         return False
         
     def isBoxed(self, newBoxPos, allBoxPos):
@@ -206,6 +274,7 @@ class SearchTree:
     # procurar a solucao
     async def search(self, limit=None):
         count = 0
+        #lowerBound = await self.computeLowerBound(self.mapa)
         
         while self.open_nodes != []:
             node = self.open_nodes.pop(0)
