@@ -8,7 +8,7 @@ from array import *
 # No de uma arvore de pesquisa
 class SearchNode:
     def __init__(self, state, parent, key, depth, cost, heuristic): 
-        self.state = state #mapa
+        self.state = state
         #self.reducedState = str(sorted(self.state.boxes)) + str(self.state.keeper)
         self.parent = parent
         self.keys = key
@@ -21,7 +21,8 @@ class SearchNode:
 
     #funcao para fazer sort sem usar sempre key
     def __lt__(self, other):
-        return self.cost + self.heuristic < other.cost + other.heuristic
+        #return self.cost + self.heuristic < other.cost + other.heuristic
+        return self.heuristic < other.heuristic
 
 # Arvore de pesquisa
 class SearchTree:
@@ -56,19 +57,38 @@ class SearchTree:
     # calculo da heuristica
     def heuristic(self, boxes):
         goals = [goal for goal in self.goals if goal not in boxes]
-
-        #if len(boxes_coor) > len(goals):
-        #    boxes_coor = [x for x in boxes_coor if map.get_tile(x) != Tiles.MAN_ON_GOAL]
+        boxes = [box for box in boxes if box not in self.goals]
 
         if len(goals) == 0:
             return 0
+        
+        if len(goals) == 1:
+            return abs(boxes[0][0]-goals[0][0]) + abs(boxes[0][1]-goals[0][1])
 
-        h = 0
-        for box in boxes:
-            for goal in goals:
-                h += abs(box[0]-goal[0]) + abs(box[1]-goal[1])
+        size = len(goals)
 
-        return h
+        l = []
+        for i in range(size):
+            l.append([])
+            for j in range(size):
+                l[i].append(abs(boxes[i][0]-goals[j][0]) + abs(boxes[i][1]-goals[j][1]))
+
+        bestcost=[10000000]
+        cost = min([(l[0][i], i) for i in range(size)])
+        self.auxBruteForce(l, [cost[1]], 1, size, cost[0], bestcost)
+        return bestcost[0]
+    
+    def auxBruteForce(self, l, selected, row, size, cost, bestcost):
+        for i in range(size):
+            if i not in selected:
+                if row != size-1:
+                    if cost + l[row][i] >= bestcost[0]:
+                        return
+                    self.auxBruteForce(l, selected + [i], row+1, size, cost+l[row][i], bestcost)
+                else:
+                    if bestcost[0] > cost + l[row][i]:
+                        bestcost[0] = cost + l[row][i]
+
     '''
     async def computeLowerBound(self, mapa):
         keeperPos = mapa.keeper
@@ -179,6 +199,49 @@ class SearchTree:
         
         return False
         
+    def isBoxed(self, newBoxPos, allBoxPos):
+        x = newBoxPos[0]
+        y = newBoxPos[1]
+        if self.mapa.get_tile(newBoxPos) in [Tiles.GOAL, Tiles.BOX_ON_GOAL]:
+            return False
+
+        # If the position directly above is a wall...
+        if self.mapa.get_tile((x, y-1)) == Tiles.WALL:
+            if (x-1, y) in allBoxPos:
+                if (self.mapa.get_tile((x-1, y-1))) == Tiles.WALL:
+                    return True
+            if (x+1, y) in allBoxPos:
+                if (self.mapa.get_tile((x+1, y-1))) == Tiles.WALL:
+                    return True
+
+        # If the position directly bellow is a wall...
+        if self.mapa.get_tile((x, y+1)) == Tiles.WALL:
+            if (x-1, y) in allBoxPos:
+                if (self.mapa.get_tile((x-1, y+1))) == Tiles.WALL:
+                    return True
+            if (x+1, y) in allBoxPos:
+                if (self.mapa.get_tile((x+1, y+1))) == Tiles.WALL:
+                    return True
+
+        # If the position to the left is a wall...
+        if self.mapa.get_tile((x-1, y)) == Tiles.WALL:
+            if (x, y-1) in allBoxPos:
+                if (self.mapa.get_tile((x-1, y-1))) == Tiles.WALL:
+                    return True
+            if (x, y+1) in allBoxPos:
+                if (self.mapa.get_tile((x-1, y+1))) == Tiles.WALL:
+                    return True
+
+        # If the position to the right is a wall...
+        if self.mapa.get_tile((x+1, y)) == Tiles.WALL:
+            if (x, y-1) in allBoxPos:
+                if (self.mapa.get_tile((x+1, y-1))) == Tiles.WALL:
+                    return True
+            if (x, y+1) in allBoxPos:
+                if (self.mapa.get_tile((x+1, y+1))) == Tiles.WALL:
+                    return True
+        
+        return False
 
     def defineWalls(self):
         dim = self.mapa.size
@@ -236,17 +299,8 @@ class SearchTree:
                 currBoxPos = key[0]
                 key = key[1]
 
-                #currMap = deepcopy(self.mapa)
-                # Clear old box positions
-                #for tile in self.mapa.filter_tiles([Tiles.BOX, Tiles.BOX_ON_GOAL, Tiles.MAN, Tiles.MAN_ON_GOAL]):
-                #    currMap.clear_tile(tile)
-                # Set current node box positions
-                #print("\n", currMap)
-                #for b in node.state[0]:
-                #    currMap.set_tile(b, Tiles.BOX)
-                # Set current keeper position
-                #currMap.set_tile(node.state[1], Tiles.MAN)
-                #print(currMap, "\n")
+                if count == 2:
+                    pass
 
                 newBoxPos = (currBoxPos[0]+movement[0], currBoxPos[1]+movement[1])
                 newKeeperPos = (currBoxPos[0]-movement[0], currBoxPos[1]-movement[1])
@@ -263,8 +317,7 @@ class SearchTree:
 
                 #verificar se ha um caminho para o keeper
                 agentSearch = SearchAgent(self.mapa, node.state[0], node.state[1], newKeeperPos)
-                #print(newKeeperPos)
-                #print(currMap)
+
                 keys = await agentSearch.search()
                 
                 if keys == None:
@@ -273,20 +326,12 @@ class SearchTree:
                 newBoxes = [b for b in node.state[0] if b != currBoxPos]
                 newBoxes.append(newBoxPos)
 
-                # Mover o keeper e a caixa...
-                #currMap.clear_tile(node.state[1])
-                #currMap.clear_tile(currBoxPos)
-                
-                #currMap.set_tile(currBoxPos, Tiles.MAN)
-                #currMap.set_tile(newBoxPos, Tiles.BOX)
-
                 if (frozenset(newBoxes), currBoxPos) in self.visitedNodes:
                     continue
                 else:
                     self.visitedNodes.add((frozenset(newBoxes), currBoxPos))
 
                 if self.isCornered(newBoxPos):
-                    #print("Check2")
                     continue
 
                 if self.isWalled(newBoxPos):
@@ -294,8 +339,7 @@ class SearchTree:
 
                 if self.isBoxed(newBoxPos, newBoxes):
                     continue
-                #print(currMap)
-                #print(currMap.get_tile((3,1)))
+
                 newnode = SearchNode((frozenset(newBoxes), currBoxPos), node, keys+key, node.depth+1, node.cost+1, self.heuristic(newBoxes))
 
                 #encontrou um túnel
