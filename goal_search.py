@@ -21,12 +21,11 @@ class SearchNode:
 
     #funcao para fazer sort sem usar sempre key
     def __lt__(self, other):
-        #return self.cost + self.heuristic < other.cost + other.heuristic
-        return self.heuristic < other.heuristic
+        return self.cost + self.heuristic < other.cost + other.heuristic
+        #return self.heuristic < other.heuristic
 
 # Arvore de pesquisa
 class SearchTree:
-
     # construtor
     def __init__(self, mapa):
         self.root = SearchNode((set(mapa.boxes), mapa.keeper), None, "", 0, 0, None)
@@ -73,9 +72,18 @@ class SearchTree:
             for j in range(size):
                 l[i].append(abs(boxes[i][0]-goals[j][0]) + abs(boxes[i][1]-goals[j][1]))
 
+        """
+        print("memes")
+        a = [[2,2,3,4],[2,4,5,6],[3,3,4,5],[6,4,3,2]]
         bestcost=[10000000]
-        cost = min([(l[0][i], i) for i in range(size)])
-        self.auxBruteForce(l, [cost[1]], 1, size, cost[0], bestcost)
+        cost = min([(a[0][i], i) for i in range(4)])
+        self.auxBruteForce(a, [cost[1]], 1, 4, cost[0], bestcost)
+        print(bestcost)
+        """
+
+        bestcost=[10000000]
+        #cost = min([(l[0][i], i) for i in range(size)])
+        self.auxBruteForce(l, [], 0, size, 0, bestcost)
         return bestcost[0]
     
     def auxBruteForce(self, l, selected, row, size, cost, bestcost):
@@ -246,6 +254,18 @@ class SearchTree:
                 if newBoxPos in node.state[0] or newKeeperPos in node.state[0]:
                     continue
 
+                if self.isCornered(newBoxPos):
+                    continue
+
+                if self.isWalled(newBoxPos):
+                    continue
+
+                newBoxes = [b for b in node.state[0] if b != currBoxPos]
+                newBoxes.append(newBoxPos)
+
+                if self.isBoxed(newBoxPos, newBoxes):
+                    continue
+
                 #verificar se ha um caminho para o keeper
                 agentSearch = SearchAgent(self.mapa, node.state[0], node.state[1], newKeeperPos)
 
@@ -254,22 +274,10 @@ class SearchTree:
                 if keys == None:
                     continue
 
-                newBoxes = [b for b in node.state[0] if b != currBoxPos]
-                newBoxes.append(newBoxPos)
-
                 if (frozenset(newBoxes), currBoxPos) in self.visitedNodes:
                     continue
                 else:
                     self.visitedNodes.add((frozenset(newBoxes), currBoxPos))
-
-                if self.isCornered(newBoxPos):
-                    continue
-
-                if self.isWalled(newBoxPos):
-                    continue
-
-                if self.isBoxed(newBoxPos, newBoxes):
-                    continue
 
                 newnode = SearchNode((frozenset(newBoxes), currBoxPos), node, keys+key, node.depth+1, node.cost+1, self.heuristic(newBoxes))
 

@@ -27,6 +27,7 @@ class SearchAgent:
 		self.destination = destination
 		root = AgentNode(initial_pos, None, None, 0, 0, None)
 		self.open_nodes = [root]
+		self.visitedNodes = set()
 
 	def state_in_path(self, node, newstate):
 		if node.state == newstate:
@@ -54,6 +55,8 @@ class SearchAgent:
 			if node.state == self.destination:
 				return self.get_keys(node)
 			
+			self.visitedNodes.add(node.state)
+			
 			moves = {"d":[1, 0], "a":[-1, 0], "s":[0, 1], "w":[0, -1]}
 
 			await asyncio.sleep(0) # this should be 0 in your code and this is REQUIRED
@@ -65,7 +68,8 @@ class SearchAgent:
 				if not self.map.is_blocked(new_keeper_pos) and new_keeper_pos not in self.boxes:
 
 					# não podem haver dois conjuntos de coordenadas iguais na solução
-					if not self.state_in_path(node, new_keeper_pos):
+					#if not self.state_in_path(node, new_keeper_pos):
+					if new_keeper_pos not in self.visitedNodes:
 						newnode = AgentNode(new_keeper_pos, node, key, node.depth+1, node.cost+1, self.heuristic(new_keeper_pos))
 
 						# Ao ordenar os nodes, garante que o node com menor custo está à frente na queue
