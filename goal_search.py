@@ -275,7 +275,7 @@ class SearchTree:
     async def search(self, limit=None):
         count = 0
         #lowerBound = await self.computeLowerBound(self.mapa)
-        
+
         while self.open_nodes != []:
             node = self.open_nodes.pop(0)
             count+=1
