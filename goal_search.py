@@ -282,7 +282,7 @@ class SearchTree:
             #print(count)
 
             #se cheguei a solucao
-            if all([self.mapa.get_tile(coord) in [Tiles.BOX_ON_GOAL, Tiles.GOAL, Tiles.MAN_ON_GOAL] for coord in node.state[0]]):
+            if all([coord in self.goals for coord in node.state[0]]):
                 #print(node.state)
                 print("Number of attempts: ", count, "\n")
                 print(self.get_keys(node))
@@ -350,44 +350,36 @@ class SearchTree:
                 ######
                 #8O__.
                 ######
-                isTunnel = True
-                while isTunnel:
-                    if newBoxPos not in self.goals:
 
-                        if movement[0] == 0: #andou em y
+                isTunnel = True
+                if movement[0] == 0: #andou em y
+                    while isTunnel:
+                        if newBoxPos not in self.goals:
                             if self.mapa.get_tile([newBoxPos[0]+1, newBoxPos[1]]) == Tiles.WALL or self.mapa.get_tile([newBoxPos[0]-1, newBoxPos[1]]) == Tiles.WALL:
                                 if self.mapa.get_tile([newBoxPos[0]+1, newBoxPos[1]+movement[1]]) == Tiles.WALL and self.mapa.get_tile([newBoxPos[0]-1, newBoxPos[1]+movement[1]]) == Tiles.WALL:
-                                    if (newBoxPos[0], newBoxPos[1]+movement[1]) not in newBoxes:
+                                    if (newBoxPos[0], newBoxPos[1]+movement[1]) not in newBoxes and self.mapa.get_tile((newBoxPos[0], newBoxPos[1]+movement[1]))!=Tiles.WALL:
                                         keys += keys[-1]
                                         newBoxes = [b for b in newBoxes if b != newBoxPos]
                                         currBoxPos = newBoxPos
                                         newBoxPos = (newBoxPos[0], newBoxPos[1]+movement[1])
                                         newBoxes.append(newBoxPos)
-                                        await asyncio.sleep(0) # this should be 0 in your code and this is REQUIRED
-                                    else:
-                                        isTunnel= False
-                                else:
-                                    isTunnel=False
-                            else:
-                                isTunnel=False
+                                        continue
 
-                        else: #andou em x 
+                        isTunnel= False
+
+                else: #andou em x 
+                    while isTunnel:
+                        if newBoxPos not in self.goals:
                             if self.mapa.get_tile([newBoxPos[0], newBoxPos[1]+1]) == Tiles.WALL or self.mapa.get_tile([newBoxPos[0], newBoxPos[1]-1]) == Tiles.WALL:
-                                if self.mapa.get_tile([newBoxPos[0]+movement[1], newBoxPos[1]+1]) == Tiles.WALL and self.mapa.get_tile([newBoxPos[0]+movement[1], newBoxPos[1]-1]) == Tiles.WALL:
-                                    if (newBoxPos[0] + movement[0], newBoxPos[1]) not in newBoxes:
+                                if self.mapa.get_tile([newBoxPos[0]+movement[0], newBoxPos[1]+1]) == Tiles.WALL and self.mapa.get_tile([newBoxPos[0]+movement[0], newBoxPos[1]-1]) == Tiles.WALL:
+                                    if (newBoxPos[0] + movement[0], newBoxPos[1]) not in newBoxes and self.mapa.get_tile((newBoxPos[0]+movement[0], newBoxPos[1]))!=Tiles.WALL:
                                         keys += keys[-1]
                                         newBoxes = [b for b in newBoxes if b != newBoxPos]
                                         currBoxPos = newBoxPos
                                         newBoxPos = (newBoxPos[0]+movement[0], newBoxPos[1])
                                         newBoxes.append(newBoxPos)
-                                        await asyncio.sleep(0) # this should be 0 in your code and this is REQUIRED
-                                    else:
-                                        isTunnel=False
-                                else:
-                                    isTunnel=False
-                            else:
-                                isTunnel=False
-                    else:
+                                        continue
+
                         isTunnel=False
 
                 if (frozenset(newBoxes), currBoxPos) in self.visitedNodes:
