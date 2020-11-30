@@ -317,16 +317,16 @@ class SearchTree:
                 newTile = self.mapa.get_tile(newBoxPos)
                 keeperTile = self.mapa.get_tile(newKeeperPos)
 
-                if any([tile == Tiles.WALL for tile in [keeperTile, newTile]]):
+                if keeperTile == Tiles.WALL or newTile == Tiles.WALL:
                     continue
 
                 if newBoxPos in node.state[0] or newKeeperPos in node.state[0]:
                     continue
 
-                if self.isCornered(newBoxPos):
+                if self.isWalled(newBoxPos):
                     continue
 
-                if self.isWalled(newBoxPos):
+                if self.isCornered(newBoxPos):
                     continue
 
                 newBoxes = [b for b in node.state[0] if b != currBoxPos]
@@ -336,28 +336,66 @@ class SearchTree:
                     continue
 
                 #verificar se ha um caminho para o keeper
-                agentSearch = SearchAgent(self.mapa, node.state[0], node.state[1], newKeeperPos)
-
-                keys = await agentSearch.search()
+                if node.state[1] != newKeeperPos:
+                    agentSearch = SearchAgent(self.mapa, node.state[0], node.state[1], newKeeperPos)
+                    keys = await agentSearch.search()
+                    if keys == None:
+                        continue
+                else:
+                    keys = ""
                 
-                if keys == None:
-                    continue
+                keys += key
+
+                #encontrou um túnel
+                ######
+                #8O__.
+                ######
+                isTunnel = True
+                while isTunnel:
+                    if newBoxPos not in self.goals:
+
+                        if movement[0] == 0: #andou em y
+                            if self.mapa.get_tile([newBoxPos[0]+1, newBoxPos[1]]) == Tiles.WALL or self.mapa.get_tile([newBoxPos[0]-1, newBoxPos[1]]) == Tiles.WALL:
+                                if self.mapa.get_tile([newBoxPos[0]+1, newBoxPos[1]+movement[1]]) == Tiles.WALL and self.mapa.get_tile([newBoxPos[0]-1, newBoxPos[1]+movement[1]]) == Tiles.WALL:
+                                    if (newBoxPos[0], newBoxPos[1]+movement[1]) not in newBoxes:
+                                        keys += keys[-1]
+                                        newBoxes = [b for b in newBoxes if b != newBoxPos]
+                                        currBoxPos = newBoxPos
+                                        newBoxPos = (newBoxPos[0], newBoxPos[1]+movement[1])
+                                        newBoxes.append(newBoxPos)
+                                        await asyncio.sleep(0) # this should be 0 in your code and this is REQUIRED
+                                    else:
+                                        isTunnel= False
+                                else:
+                                    isTunnel=False
+                            else:
+                                isTunnel=False
+
+                        else: #andou em x 
+                            if self.mapa.get_tile([newBoxPos[0], newBoxPos[1]+1]) == Tiles.WALL or self.mapa.get_tile([newBoxPos[0], newBoxPos[1]-1]) == Tiles.WALL:
+                                if self.mapa.get_tile([newBoxPos[0]+movement[1], newBoxPos[1]+1]) == Tiles.WALL and self.mapa.get_tile([newBoxPos[0]+movement[1], newBoxPos[1]-1]) == Tiles.WALL:
+                                    if (newBoxPos[0] + movement[0], newBoxPos[1]) not in newBoxes:
+                                        keys += keys[-1]
+                                        newBoxes = [b for b in newBoxes if b != newBoxPos]
+                                        currBoxPos = newBoxPos
+                                        newBoxPos = (newBoxPos[0]+movement[0], newBoxPos[1])
+                                        newBoxes.append(newBoxPos)
+                                        await asyncio.sleep(0) # this should be 0 in your code and this is REQUIRED
+                                    else:
+                                        isTunnel=False
+                                else:
+                                    isTunnel=False
+                            else:
+                                isTunnel=False
+                    else:
+                        isTunnel=False
 
                 if (frozenset(newBoxes), currBoxPos) in self.visitedNodes:
                     continue
                 else:
                     self.visitedNodes.add((frozenset(newBoxes), currBoxPos))
 
-                newnode = SearchNode((frozenset(newBoxes), currBoxPos), node, keys+key, node.depth+1, node.cost+1, self.heuristic(newBoxes))
-
-                #encontrou um túnel
-                #if movement[0] == 0: #andou em y
-                #    if node.state.get_tile([box[0]+1, box[1]+movement[1]]) == Tiles.WALL and node.state.get_tile([box[0]-1, box[1]+movement[1]]) == Tiles.WALL:
-                #        newnode.keys += newnode.keys[-1]
-                #else:
-                #    if node.state.get_tile([box[0]+movement[0], box[1]+1]) == Tiles.WALL and node.state.get_tile([box[0]+movement[0], box[1]-1]) == Tiles.WALL:
-                #        newnode.keys += newnode.keys[-1]
-
+                newnode = SearchNode((frozenset(newBoxes), currBoxPos), node, keys, node.depth+1, node.cost+0.5, self.heuristic(newBoxes))
                 #adicionar o novo Node à lista e sort ao mesmo tempo
                 insort_left(self.open_nodes, newnode)
 
