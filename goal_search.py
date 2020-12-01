@@ -31,9 +31,15 @@ class SearchTree:
         self.root = SearchNode((set(mapa.boxes), mapa.keeper), None, "", 0, 0, None)
         self.mapa = mapa
         self.open_nodes = [self.root]
+        self.goals = self.mapa.filter_tiles([Tiles.GOAL, Tiles.BOX_ON_GOAL, Tiles.MAN_ON_GOAL])
         self.defineWalls()
         self.visitedNodes = set()
-        self.goals = self.mapa.filter_tiles([Tiles.GOAL, Tiles.BOX_ON_GOAL, Tiles.MAN_ON_GOAL])
+        self.isWall = []
+        for x in range(mapa.size[0]):
+            self.isWall.append([])
+            for y in range(mapa.size[1]):
+                self.isWall[x].append(mapa.get_tile((x,y)) == Tiles.WALL)
+
 
     # obter o caminho (de teclas) da raiz ate um no
     def get_keys(self,node):
@@ -72,18 +78,9 @@ class SearchTree:
             for j in range(size):
                 l[i].append(abs(boxes[i][0]-goals[j][0]) + abs(boxes[i][1]-goals[j][1]))
 
-        """
-        print("memes")
-        a = [[2,2,3,4],[2,4,5,6],[3,3,4,5],[6,4,3,2]]
         bestcost=[10000000]
-        cost = min([(a[0][i], i) for i in range(4)])
-        self.auxBruteForce(a, [cost[1]], 1, 4, cost[0], bestcost)
-        print(bestcost)
-        """
-
-        bestcost=[10000000]
-        #cost = min([(l[0][i], i) for i in range(size)])
-        self.auxBruteForce(l, [], 0, size, 0, bestcost)
+        cost = min([(l[0][i], i) for i in range(size)])
+        self.auxBruteForce(l, [cost[1]], 1, size, cost[0], bestcost)
         return bestcost[0]
     
     def auxBruteForce(self, l, selected, row, size, cost, bestcost):
@@ -125,22 +122,26 @@ class SearchTree:
     def isCornered(self, boxPos):
 
         # If the box is on goal, it is not considered a cornered box since it could be part of the solution
-        if self.mapa.get_tile(boxPos) == Tiles.GOAL or self.mapa.get_tile(boxPos) == Tiles.BOX_ON_GOAL:
+        if boxPos in self.goals:
             return False
             
         # Positions = (Up, Down, Left Right)
-        box_upPos = self.mapa.get_tile( tuple(map( lambda t1, t2: t1 + t2, boxPos, (0, -1) )) )
-        box_downPos = self.mapa.get_tile( tuple(map( lambda t1, t2: t1 + t2, boxPos, (0, 1) )) )
-        box_leftPos = self.mapa.get_tile( tuple(map( lambda t1, t2: t1 + t2, boxPos, (-1, 0) )) )
-        box_rightPos = self.mapa.get_tile( tuple(map( lambda t1, t2: t1 + t2, boxPos, (1, 0) )) )
+        #box_upPos = self.mapa.get_tile( tuple(map( lambda t1, t2: t1 + t2, boxPos, (0, -1) ))
+        #box_downPos = self.mapa.get_tile( tuple(map( lambda t1, t2: t1 + t2, boxPos, (0, 1) )) )
+        #box_leftPos = self.mapa.get_tile( tuple(map( lambda t1, t2: t1 + t2, boxPos, (-1, 0) )) )
+        #box_rightPos = self.mapa.get_tile( tuple(map( lambda t1, t2: t1 + t2, boxPos, (1, 0) )) )
+        box_upPos = self.isWall[boxPos[0]][boxPos[1]-1]
+        box_downPos = self.isWall[boxPos[0]][boxPos[1]+1]
+        box_leftPos = self.isWall[boxPos[0]-1][boxPos[1]]
+        box_rightPos = self.isWall[boxPos[0]+1][boxPos[1]]
 
-        if (box_leftPos == Tiles.WALL) and (box_upPos == Tiles.WALL):
+        if box_leftPos and box_upPos:
             return True
-        if (box_upPos == Tiles.WALL) and (box_rightPos == Tiles.WALL):
+        if box_upPos and box_rightPos:
             return True
-        if (box_rightPos == Tiles.WALL) and (box_downPos == Tiles.WALL):
+        if box_rightPos and box_downPos:
             return True
-        if (box_downPos == Tiles.WALL) and (box_leftPos == Tiles.WALL):
+        if box_downPos and box_leftPos:
             return True
 
         return False
@@ -162,91 +163,47 @@ class SearchTree:
             return True
 
         return False
-    
-    def isBoxed(self, newBoxPos, allBoxPos):
-        x = newBoxPos[0]
-        y = newBoxPos[1]
-        if self.mapa.get_tile(newBoxPos) in [Tiles.GOAL, Tiles.BOX_ON_GOAL]:
-            return False
-
-        # If the position directly above is a wall...
-        if self.mapa.get_tile((x, y-1)) == Tiles.WALL:
-            if (x-1, y) in allBoxPos:
-                if (self.mapa.get_tile((x-1, y-1))) == Tiles.WALL:
-                    return True
-            if (x+1, y) in allBoxPos:
-                if (self.mapa.get_tile((x+1, y-1))) == Tiles.WALL:
-                    return True
-
-        # If the position directly bellow is a wall...
-        if self.mapa.get_tile((x, y+1)) == Tiles.WALL:
-            if (x-1, y) in allBoxPos:
-                if (self.mapa.get_tile((x-1, y+1))) == Tiles.WALL:
-                    return True
-            if (x+1, y) in allBoxPos:
-                if (self.mapa.get_tile((x+1, y+1))) == Tiles.WALL:
-                    return True
-
-        # If the position to the left is a wall...
-        if self.mapa.get_tile((x-1, y)) == Tiles.WALL:
-            if (x, y-1) in allBoxPos:
-                if (self.mapa.get_tile((x-1, y-1))) == Tiles.WALL:
-                    return True
-            if (x, y+1) in allBoxPos:
-                if (self.mapa.get_tile((x-1, y+1))) == Tiles.WALL:
-                    return True
-
-        # If the position to the right is a wall...
-        if self.mapa.get_tile((x+1, y)) == Tiles.WALL:
-            if (x, y-1) in allBoxPos:
-                if (self.mapa.get_tile((x+1, y-1))) == Tiles.WALL:
-                    return True
-            if (x, y+1) in allBoxPos:
-                if (self.mapa.get_tile((x+1, y+1))) == Tiles.WALL:
-                    return True
-        
-        return False
         
     def isBoxed(self, newBoxPos, allBoxPos):
         x = newBoxPos[0]
         y = newBoxPos[1]
-        if self.mapa.get_tile(newBoxPos) in [Tiles.GOAL, Tiles.BOX_ON_GOAL]:
+        if newBoxPos in self.goals:
             return False
 
         # If the position directly above is a wall...
-        if self.mapa.get_tile((x, y-1)) == Tiles.WALL:
+        if self.isWall[x][y-1]:
             if (x-1, y) in allBoxPos:
-                if (self.mapa.get_tile((x-1, y-1))) == Tiles.WALL:
+                if self.isWall[x-1][y-1]:
                     return True
             if (x+1, y) in allBoxPos:
-                if (self.mapa.get_tile((x+1, y-1))) == Tiles.WALL:
+                if self.isWall[x+1][y-1]:
                     return True
 
         # If the position directly bellow is a wall...
-        if self.mapa.get_tile((x, y+1)) == Tiles.WALL:
+        if self.isWall[x][y+1]:
             if (x-1, y) in allBoxPos:
-                if (self.mapa.get_tile((x-1, y+1))) == Tiles.WALL:
+                if self.isWall[x-1][y+1]:
                     return True
-            if (x+1, y) in allBoxPos:
-                if (self.mapa.get_tile((x+1, y+1))) == Tiles.WALL:
+            if self.isWall[x+1][y] in allBoxPos:
+                if self.isWall[x+1][y+1]:
                     return True
 
         # If the position to the left is a wall...
-        if self.mapa.get_tile((x-1, y)) == Tiles.WALL:
+        if self.isWall[x-1][y]:
             if (x, y-1) in allBoxPos:
-                if (self.mapa.get_tile((x-1, y-1))) == Tiles.WALL:
+                if self.isWall[x-1][y-1]:
                     return True
             if (x, y+1) in allBoxPos:
-                if (self.mapa.get_tile((x-1, y+1))) == Tiles.WALL:
+                if self.isWall[x-1][y+1]:
                     return True
 
         # If the position to the right is a wall...
-        if self.mapa.get_tile((x+1, y)) == Tiles.WALL:
+        if self.isWall[x+1][y]:
             if (x, y-1) in allBoxPos:
-                if (self.mapa.get_tile((x+1, y-1))) == Tiles.WALL:
+                if self.isWall[x+1][y-1]:
                     return True
             if (x, y+1) in allBoxPos:
-                if (self.mapa.get_tile((x+1, y+1))) == Tiles.WALL:
+                if self.isWall[x+1][y+1]:
                     return True
         
         return False
@@ -261,7 +218,7 @@ class SearchTree:
         self.botBlock = True
 
         # If there is a goal on a certain border, that border will no longer be blocked
-        for goalPos in self.mapa.filter_tiles([ Tiles.GOAL, Tiles.BOX_ON_GOAL, Tiles.MAN_ON_GOAL ]):
+        for goalPos in self.goals:
             if goalPos[0] == 1:
                 self.leftBlock = False
             if goalPos[1] == 1:
@@ -314,10 +271,7 @@ class SearchTree:
                 newKeeperPos = (currBoxPos[0]-movement[0], currBoxPos[1]-movement[1])
 
                 #verificar se esta a ir contra uma parede ou caixa e verificar se o lugar do keeper esta vazio
-                newTile = self.mapa.get_tile(newBoxPos)
-                keeperTile = self.mapa.get_tile(newKeeperPos)
-
-                if keeperTile == Tiles.WALL or newTile == Tiles.WALL:
+                if self.isWall[newKeeperPos[0]][newKeeperPos[1]] or self.isWall[newBoxPos[0]][newBoxPos[1]]:
                     continue
 
                 if newBoxPos in node.state[0] or newKeeperPos in node.state[0]:
@@ -337,48 +291,48 @@ class SearchTree:
 
                 #verificar se ha um caminho para o keeper
                 if node.state[1] != newKeeperPos:
-                    agentSearch = SearchAgent(self.mapa, node.state[0], node.state[1], newKeeperPos)
+                    agentSearch = SearchAgent(self.isWall, node.state[0], node.state[1], newKeeperPos)
                     keys = await agentSearch.search()
                     if keys == None:
                         continue
                 else:
                     keys = ""
                 
+                addFactor = len(keys)/20
+                
                 keys += key
 
-                #encontrou um túnel
-                ######
-                #8O__.
-                ######
-
+                #verificar se estamos num tunel
                 isTunnel = True
                 if movement[0] == 0: #andou em y
                     while isTunnel:
                         if newBoxPos not in self.goals:
-                            if self.mapa.get_tile([newBoxPos[0]+1, newBoxPos[1]]) == Tiles.WALL or self.mapa.get_tile([newBoxPos[0]-1, newBoxPos[1]]) == Tiles.WALL:
-                                if self.mapa.get_tile([newBoxPos[0]+1, newBoxPos[1]+movement[1]]) == Tiles.WALL and self.mapa.get_tile([newBoxPos[0]-1, newBoxPos[1]+movement[1]]) == Tiles.WALL:
-                                    if (newBoxPos[0], newBoxPos[1]+movement[1]) not in newBoxes and self.mapa.get_tile((newBoxPos[0], newBoxPos[1]+movement[1]))!=Tiles.WALL:
-                                        keys += keys[-1]
-                                        newBoxes = [b for b in newBoxes if b != newBoxPos]
-                                        currBoxPos = newBoxPos
-                                        newBoxPos = (newBoxPos[0], newBoxPos[1]+movement[1])
-                                        newBoxes.append(newBoxPos)
-                                        continue
+                            if self.isWall[newBoxPos[0]+1][newBoxPos[1]] or self.isWall[newBoxPos[0]-1][newBoxPos[1]]:
+                                if self.isWall[newBoxPos[0]+1][newBoxPos[1]+movement[1]] and self.isWall[newBoxPos[0]-1][newBoxPos[1]+movement[1]]:
+                                    if (newBoxPos[0], newBoxPos[1]+movement[1]) not in newBoxes:
+                                        if self.isWall[newBoxPos[0]][newBoxPos[1]+movement[1]]:
+                                            keys += keys[-1]
+                                            newBoxes = [b for b in newBoxes if b != newBoxPos]
+                                            currBoxPos = newBoxPos
+                                            newBoxPos = (newBoxPos[0], newBoxPos[1]+movement[1])
+                                            newBoxes.append(newBoxPos)
+                                            continue
 
                         isTunnel= False
 
                 else: #andou em x 
                     while isTunnel:
                         if newBoxPos not in self.goals:
-                            if self.mapa.get_tile([newBoxPos[0], newBoxPos[1]+1]) == Tiles.WALL or self.mapa.get_tile([newBoxPos[0], newBoxPos[1]-1]) == Tiles.WALL:
-                                if self.mapa.get_tile([newBoxPos[0]+movement[0], newBoxPos[1]+1]) == Tiles.WALL and self.mapa.get_tile([newBoxPos[0]+movement[0], newBoxPos[1]-1]) == Tiles.WALL:
-                                    if (newBoxPos[0] + movement[0], newBoxPos[1]) not in newBoxes and self.mapa.get_tile((newBoxPos[0]+movement[0], newBoxPos[1]))!=Tiles.WALL:
-                                        keys += keys[-1]
-                                        newBoxes = [b for b in newBoxes if b != newBoxPos]
-                                        currBoxPos = newBoxPos
-                                        newBoxPos = (newBoxPos[0]+movement[0], newBoxPos[1])
-                                        newBoxes.append(newBoxPos)
-                                        continue
+                            if self.isWall[newBoxPos[0]][newBoxPos[1]+1] or self.isWall[newBoxPos[0]][newBoxPos[1]-1]:
+                                if self.isWall[newBoxPos[0]+movement[0]][newBoxPos[1]+1] and self.isWall[newBoxPos[0]+movement[0]][newBoxPos[1]-1]:
+                                    if (newBoxPos[0] + movement[0], newBoxPos[1]) not in newBoxes:
+                                        if self.isWall[newBoxPos[0]+movement[0]][newBoxPos[1]]:
+                                            keys += keys[-1]
+                                            newBoxes = [b for b in newBoxes if b != newBoxPos]
+                                            currBoxPos = newBoxPos
+                                            newBoxPos = (newBoxPos[0]+movement[0], newBoxPos[1])
+                                            newBoxes.append(newBoxPos)
+                                            continue
 
                         isTunnel=False
 
@@ -387,7 +341,7 @@ class SearchTree:
                 else:
                     self.visitedNodes.add((frozenset(newBoxes), currBoxPos))
 
-                newnode = SearchNode((frozenset(newBoxes), currBoxPos), node, keys, node.depth+1, node.cost+0.5, self.heuristic(newBoxes))
+                newnode = SearchNode((frozenset(newBoxes), currBoxPos), node, keys, node.depth+1, node.cost+addFactor, self.heuristic(newBoxes))
                 #adicionar o novo Node à lista e sort ao mesmo tempo
                 insort_left(self.open_nodes, newnode)
 

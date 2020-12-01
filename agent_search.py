@@ -21,8 +21,8 @@ class AgentNode:
 
 
 class SearchAgent:
-	def __init__(self, initial_map, boxes, initial_pos, destination):
-		self.map = initial_map
+	def __init__(self, isWall, boxes, initial_pos, destination):
+		self.isWall = isWall
 		self.boxes = boxes
 		self.destination = destination
 		root = AgentNode(initial_pos, None, None, 0, 0, None)
@@ -65,7 +65,7 @@ class SearchAgent:
 				new_keeper_pos = (node.state[0]+moves[key][0], node.state[1]+moves[key][1])
 				
 				# Se a posição não estiver bloqueada
-				if not self.map.is_blocked(new_keeper_pos) and new_keeper_pos not in self.boxes:
+				if not self.isWall[new_keeper_pos[0]][new_keeper_pos[1]] and new_keeper_pos not in self.boxes:
 
 					# não podem haver dois conjuntos de coordenadas iguais na solução
 					#if not self.state_in_path(node, new_keeper_pos):
