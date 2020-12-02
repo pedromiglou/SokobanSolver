@@ -118,7 +118,8 @@ class SearchTree:
             results.append(aux)
         
         return sum([min(a) for a in results])
-    '''
+    ''' 
+
     def isCornered(self, boxPos):
 
         # If the box is on goal, it is not considered a cornered box since it could be part of the solution
@@ -310,14 +311,54 @@ class SearchTree:
                             if self.isWall[newBoxPos[0]+1][newBoxPos[1]] or self.isWall[newBoxPos[0]-1][newBoxPos[1]]:
                                 if self.isWall[newBoxPos[0]+1][newBoxPos[1]+movement[1]] and self.isWall[newBoxPos[0]-1][newBoxPos[1]+movement[1]]:
                                     if (newBoxPos[0], newBoxPos[1]+movement[1]) not in newBoxes:
-                                        if self.isWall[newBoxPos[0]][newBoxPos[1]+movement[1]]:
+                                        if not self.isWall[newBoxPos[0]][newBoxPos[1]+movement[1]]:
                                             keys += keys[-1]
                                             newBoxes = [b for b in newBoxes if b != newBoxPos]
                                             currBoxPos = newBoxPos
                                             newBoxPos = (newBoxPos[0], newBoxPos[1]+movement[1])
                                             newBoxes.append(newBoxPos)
                                             continue
-
+                                #-------------------------------
+                                '''
+                                elif self.isWall[newBoxPos[0]+1][newBoxPos[1]+movement[1]]:
+                                    if (newBoxPos[0], newBoxPos[1]+movement[1]) not in newBoxes:
+                                        if not self.isWall[newBoxPos[0]][newBoxPos[1]+movement[1]]:
+                                            
+                                            isTunnelv2 = True
+                                            for box in newBoxes:
+                                                #print("ENTREI")
+                                                if newBoxPos[0] - 1 == box[0]:
+                                                    isTunnelv2 = False
+                                                    break
+                                            if isTunnelv2:
+                                                #print("ENTREI2")
+                                                keys += keys[-1]
+                                                newBoxes = [b for b in newBoxes if b != newBoxPos]
+                                                currBoxPos = newBoxPos
+                                                newBoxPos = (newBoxPos[0], newBoxPos[1]+movement[1])
+                                                newBoxes.append(newBoxPos)
+                                                continue
+                                            
+                                            continue
+                                elif self.isWall[newBoxPos[0]-1][newBoxPos[1]+movement[1]]:
+                                    if (newBoxPos[0], newBoxPos[1]+movement[1]) not in newBoxes:
+                                        if not self.isWall[newBoxPos[0]][newBoxPos[1]+movement[1]]:
+                                            
+                                            isTunnelv2 = True
+                                            for box in newBoxes:
+                                                #print("ENTREI3")
+                                                if newBoxPos[0] + 1 == box[0]:
+                                                    isTunnelv2 = False
+                                                    break
+                                            if isTunnelv2:
+                                                #print("ENTREI4")
+                                                keys += keys[-1]
+                                                newBoxes = [b for b in newBoxes if b != newBoxPos]
+                                                currBoxPos = newBoxPos
+                                                newBoxPos = (newBoxPos[0], newBoxPos[1]+movement[1])
+                                                newBoxes.append(newBoxPos)
+                                                continue
+                                '''
                         isTunnel= False
 
                 else: #andou em x 
@@ -326,14 +367,50 @@ class SearchTree:
                             if self.isWall[newBoxPos[0]][newBoxPos[1]+1] or self.isWall[newBoxPos[0]][newBoxPos[1]-1]:
                                 if self.isWall[newBoxPos[0]+movement[0]][newBoxPos[1]+1] and self.isWall[newBoxPos[0]+movement[0]][newBoxPos[1]-1]:
                                     if (newBoxPos[0] + movement[0], newBoxPos[1]) not in newBoxes:
-                                        if self.isWall[newBoxPos[0]+movement[0]][newBoxPos[1]]:
+                                        if not self.isWall[newBoxPos[0]+movement[0]][newBoxPos[1]]:
                                             keys += keys[-1]
                                             newBoxes = [b for b in newBoxes if b != newBoxPos]
                                             currBoxPos = newBoxPos
                                             newBoxPos = (newBoxPos[0]+movement[0], newBoxPos[1])
                                             newBoxes.append(newBoxPos)
                                             continue
-
+                                #------------------------------------------------------
+                                '''
+                                elif self.isWall[newBoxPos[0]+movement[0]][newBoxPos[1]+1]:
+                                    if (newBoxPos[0] + movement[0], newBoxPos[1]) not in newBoxes:
+                                        if not self.isWall[newBoxPos[0]+movement[0]][newBoxPos[1]]:
+                                            
+                                            isTunnelv2 = True
+                                            for box in newBoxes:
+                                                if newBoxPos[1] - 1 == box[1]:
+                                                    isTunnelv2 = False
+                                                    break
+                                            if isTunnelv2:
+                                                keys += keys[-1]
+                                                newBoxes = [b for b in newBoxes if b != newBoxPos]
+                                                currBoxPos = newBoxPos
+                                                newBoxPos = (newBoxPos[0]+movement[0], newBoxPos[1])
+                                                newBoxes.append(newBoxPos)
+                                                continue
+                                            
+                                elif self.isWall[newBoxPos[0]+movement[0]][newBoxPos[1]-1]:
+                                    if (newBoxPos[0] + movement[0], newBoxPos[1]) not in newBoxes:
+                                        if not self.isWall[newBoxPos[0]+movement[0]][newBoxPos[1]]:
+                                            
+                                            isTunnelv2 = True
+                                            for box in newBoxes:
+                                                if newBoxPos[1] + 1 == box[1]:
+                                                    isTunnelv2 = False
+                                                    break
+                                            if isTunnelv2:
+                                                keys += keys[-1]
+                                                newBoxes = [b for b in newBoxes if b != newBoxPos]
+                                                currBoxPos = newBoxPos
+                                                newBoxPos = (newBoxPos[0]+movement[0], newBoxPos[1])
+                                                newBoxes.append(newBoxPos)
+                                                continue
+                                '''
+                                
                         isTunnel=False
 
                 if (frozenset(newBoxes), currBoxPos) in self.visitedNodes:
