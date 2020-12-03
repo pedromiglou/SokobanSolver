@@ -4,12 +4,12 @@ import asyncio
 from bisect import insort_left
 
 class AgentNode:
-	def __init__(self, state, parent, key, depth, cost, heuristic):
+	def __init__(self, state, parent, key, heuristic):
 		self.state = state
 		self.parent = parent
 		self.key = key
-		self.depth = depth
-		self.cost = cost
+		#self.depth = depth
+		#self.cost = cost
 		self.heuristic = heuristic
 
 	def __str__(self):
@@ -17,7 +17,7 @@ class AgentNode:
 
 	#funcao para fazer sort sem usar sempre key
 	def __lt__(self, other):
-		return self.cost + 2*self.heuristic < other.cost + 2*other.heuristic
+		return self.heuristic < other.heuristic
 
 
 class SearchAgent:
@@ -25,18 +25,9 @@ class SearchAgent:
 		self.isWall = isWall
 		self.boxes = boxes
 		self.destination = destination
-		root = AgentNode(initial_pos, None, None, 0, 0, None)
+		root = AgentNode(initial_pos, None, None, None)
 		self.open_nodes = [root]
 		self.visitedNodes = set()
-
-	def state_in_path(self, node, newstate):
-		if node.state == newstate:
-			return True
-		else:
-			if node.parent != None:
-				return self.state_in_path(node.parent, newstate)
-			else:
-				return False
 
 	def get_keys(self, node):
 		if node.parent == None:
@@ -70,7 +61,7 @@ class SearchAgent:
 					# não podem haver dois conjuntos de coordenadas iguais na solução
 					#if not self.state_in_path(node, new_keeper_pos):
 					if new_keeper_pos not in self.visitedNodes:
-						newnode = AgentNode(new_keeper_pos, node, key, node.depth+1, node.cost+1, self.heuristic(new_keeper_pos))
+						newnode = AgentNode(new_keeper_pos, node, key, self.heuristic(new_keeper_pos))
 
 						# Ao ordenar os nodes, garante que o node com menor custo está à frente na queue
 						# e assim será sempre escolhido o node optimal para a solução
