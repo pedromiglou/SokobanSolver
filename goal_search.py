@@ -304,8 +304,13 @@ class SearchTree:
         return False
 
     def deadlock(self, boxPos, newBoxes):
+        if boxPos in self.goals or (boxPos[0], boxPos[1]+1) in self.goals:
+            return False
+
         # DeadLock Pattern 1
         if (boxPos[0]+1, boxPos[1]) in newBoxes:  # There is a box to the right
+            if (boxPos[0]+1, boxPos[1]+1) in self.goals:
+                return False
             wall1 = (boxPos[0]-1, boxPos[1]+1)    # Wall x-1, y+1
             wall2 = (boxPos[0], boxPos[1]+2)      # Wall x, y+2
             wall3 = (boxPos[0]+1, boxPos[1]+2)    # Wall x+1, y+2
@@ -314,7 +319,9 @@ class SearchTree:
                 if self.isWall[wall1[0]][wall1[1]] and self.isWall[wall2[0]][wall2[1]] and self.isWall[wall3[0]][wall3[1]] and self.isWall[wall4[0]][wall4[1]]:
                     return True
 
-        if (boxPos[0]-1, boxPos[1]) in newBoxes:  # There is a box to the right
+        if (boxPos[0]-1, boxPos[1]) in newBoxes:  # There is a box to the left
+            if (boxPos[0]-1, boxPos[1]+1) in self.goals:
+                return False
             wall1 = (boxPos[0]+1, boxPos[1]+1)    # Wall x+1, y+1
             wall2 = (boxPos[0], boxPos[1]+2)      # Wall x, y+2
             wall3 = (boxPos[0]-1, boxPos[1]+2)    # Wall x-1, y+2
@@ -322,24 +329,31 @@ class SearchTree:
             if  not (wall1[0] > self.mapa.size[0]-1 or wall1[1] > self.mapa.size[1]-1 or wall2[0] > self.mapa.size[0]-1 or wall2[1] > self.mapa.size[1]-1 or wall3[0] > self.mapa.size[0]-1 or wall3[1] > self.mapa.size[1]-1 or wall4[0] > self.mapa.size[0]-1 or wall4[1] > self.mapa.size[1]-1):
                 if self.isWall[wall1[0]][wall1[1]] and self.isWall[wall2[0]][wall2[1]] and self.isWall[wall3[0]][wall3[1]] and self.isWall[wall4[0]][wall4[1]]:
                     return True
+                    
         # DeadLock Pattern 2
-        box_upPos = self.isWall[boxPos[0]][boxPos[1]-1] or (boxPos[0], boxPos[1]-1) in newBoxes
-        box_downPos = self.isWall[boxPos[0]][boxPos[1]+1] or (boxPos[0], boxPos[1]+1) in newBoxes
-        box_leftPos = self.isWall[boxPos[0]-1][boxPos[1]] or (boxPos[0]-1, boxPos[1]) in newBoxes
         box_rightPos = self.isWall[boxPos[0]+1][boxPos[1]] or (boxPos[0]+1, boxPos[1]) in newBoxes
-        box_upRightPos = self.isWall[boxPos[0]+1][boxPos[1]+1] or (boxPos[0]+1, boxPos[1]+1) in newBoxes
-        box_upLeftPos = self.isWall[boxPos[0]-1][boxPos[1]+1] or (boxPos[0]-1, boxPos[1]+1) in newBoxes
-        box_downRightPos = self.isWall[boxPos[0]+1][boxPos[1]-1] or (boxPos[0]+1, boxPos[1]-1) in newBoxes
-        box_downLeftPos = self.isWall[boxPos[0]-1][boxPos[1]-1] or (boxPos[0]-1, boxPos[1]-1) in newBoxes
+        box_leftPos = self.isWall[boxPos[0]-1][boxPos[1]] or (boxPos[0]-1, boxPos[1]) in newBoxes
 
-        if box_leftPos and box_upPos and box_upLeftPos:
-            return True
-        if box_rightPos and box_upPos and box_upRightPos:
-            return True
-        if box_rightPos and box_downPos and box_downRightPos:
-            return True
-        if box_leftPos and box_downPos and box_downLeftPos:
-            return True
+        if box_rightPos:
+            box_upPos = self.isWall[boxPos[0]][boxPos[1]-1] or (boxPos[0], boxPos[1]-1) in newBoxes
+            box_downPos = self.isWall[boxPos[0]][boxPos[1]+1] or (boxPos[0], boxPos[1]+1) in newBoxes
+            box_upRightPos = self.isWall[boxPos[0]+1][boxPos[1]+1] or (boxPos[0]+1, boxPos[1]+1) in newBoxes
+            box_downRightPos = self.isWall[boxPos[0]+1][boxPos[1]-1] or (boxPos[0]+1, boxPos[1]-1) in newBoxes
+
+            if box_rightPos and box_upPos and box_upRightPos:
+                return True
+            if box_rightPos and box_downPos and box_downRightPos:
+                return True        
+        if box_leftPos:
+            box_upPos = self.isWall[boxPos[0]][boxPos[1]-1] or (boxPos[0], boxPos[1]-1) in newBoxes
+            box_downPos = self.isWall[boxPos[0]][boxPos[1]+1] or (boxPos[0], boxPos[1]+1) in newBoxes
+            box_upLeftPos = self.isWall[boxPos[0]-1][boxPos[1]+1] or (boxPos[0]-1, boxPos[1]+1) in newBoxes
+            box_downLeftPos = self.isWall[boxPos[0]-1][boxPos[1]-1] or (boxPos[0]-1, boxPos[1]-1) in newBoxes
+
+            if box_leftPos and box_upPos and box_upLeftPos:
+                return True
+            if box_leftPos and box_downPos and box_downLeftPos:
+                return True        
         return False
 
     def tunnel(self, currBoxPos, newBoxPos, movement, newBoxes, keys):
