@@ -343,95 +343,55 @@ class SearchTree:
         return False
 
     def tunnel(self, currBoxPos, newBoxPos, movement, newBoxes, keys):
-        isTunnel = True
-        
         if movement[0] == 0: #andou em y    0 + 1 -> direita ; 0 - 1 -> esquerda
-            while isTunnel:
-                if not (0 < newBoxPos[1]+2*movement[1] < self.mapa.size[1]):
-                    isTunnel = False
-                    continue
+            if not (0 < newBoxPos[1]+2*movement[1] < self.mapa.size[1]):
+                return currBoxPos, newBoxPos, keys
 
-                if newBoxPos not in self.goals: #se a nova posicao da caixa n esta nos objetivos
-                    if self.isWall[newBoxPos[0]+1][newBoxPos[1]] or self.isWall[newBoxPos[0]-1][newBoxPos[1]]: #se tem uma parede á esquerda ou á direita
-                        if self.isWall[newBoxPos[0]+1][newBoxPos[1]+movement[1]] and self.isWall[newBoxPos[0]-1][newBoxPos[1]+movement[1]]: #se na posicao a seguir estiver rodeado de duas paredes
-                            if (newBoxPos[0], newBoxPos[1]+movement[1]) not in newBoxes and not self.isBlocked[newBoxPos[0]][newBoxPos[1]+movement[1]]:#se na posição seguinte não está uma caixa nem uma parede
-                                keys += keys[-1]
-                                newBoxes = [b for b in newBoxes if b != newBoxPos]
-                                currBoxPos = newBoxPos
-                                newBoxPos = (newBoxPos[0], newBoxPos[1]+movement[1])
-                                newBoxes.append(newBoxPos)
-                                continue
-                        
-                        elif self.isWall[newBoxPos[0]+1][newBoxPos[1]+movement[1]]: #se tem parede á direita e não tem parede á esquerda
-                            if (newBoxPos[0], newBoxPos[1]+movement[1]) not in newBoxes and not self.isBlocked[newBoxPos[0]][newBoxPos[1]+movement[1]]:#se na posição seguinte não está uma caixa nem uma parede
-                                if (newBoxPos[0], newBoxPos[1]+movement[1]*2) not in newBoxes and not self.isBlocked[newBoxPos[0]][newBoxPos[1]+movement[1]*2]:
-                                    if not self.isWall[newBoxPos[0]-1][newBoxPos[1]+2*movement[1]] and (newBoxPos[0]-1, newBoxPos[1]+movement[1]*2) not in newBoxes:
-                                        if (newBoxPos[0]-1, newBoxPos[1]+movement[1]) not in newBoxes:
-                                            keys += keys[-1]
-                                            newBoxes = [b for b in newBoxes if b != newBoxPos]
-                                            currBoxPos = newBoxPos
-                                            newBoxPos = (newBoxPos[0], newBoxPos[1]+movement[1])
-                                            newBoxes.append(newBoxPos)
-                                            continue
+            if newBoxPos not in self.goals: #se a nova posicao da caixa n esta nos objetivos
+                if self.isWall[newBoxPos[0]+1][newBoxPos[1]] or self.isWall[newBoxPos[0]-1][newBoxPos[1]]: #se tem uma parede á esquerda ou á direita
+                    if self.isWall[newBoxPos[0]+1][newBoxPos[1]+movement[1]] and self.isWall[newBoxPos[0]-1][newBoxPos[1]+movement[1]]: #se na posicao a seguir estiver rodeado de duas paredes
+                        if not self.isBlocked[newBoxPos[0]][newBoxPos[1]+movement[1]] and (newBoxPos[0], newBoxPos[1]+movement[1]) not in newBoxes:#se na posição seguinte não está uma caixa nem uma parede
+                            currBoxPos, newBoxPos, keys = self.tunnel(newBoxPos, (newBoxPos[0], newBoxPos[1]+movement[1]), movement, newBoxes, keys + keys[-1])
+                    
+                    elif self.isWall[newBoxPos[0]+1][newBoxPos[1]+movement[1]]: #se tem parede á direita e não tem parede á esquerda
+                        if not self.isBlocked[newBoxPos[0]][newBoxPos[1]+movement[1]*2] and (newBoxPos[0], newBoxPos[1]+movement[1]*2) not in newBoxes:#se na posição seguinte não está uma caixa nem uma parede
+                            if not self.isWall[newBoxPos[0]-1][newBoxPos[1]+2*movement[1]] and (newBoxPos[0]-1, newBoxPos[1]+movement[1]*2) not in newBoxes:
+                                if not self.isBlocked[newBoxPos[0]][newBoxPos[1]+movement[1]] and (newBoxPos[0], newBoxPos[1]+movement[1]) not in newBoxes:
+                                    if (newBoxPos[0]-1, newBoxPos[1]+movement[1]) not in newBoxes:
+                                        currBoxPos, newBoxPos, keys = self.tunnel(newBoxPos, (newBoxPos[0], newBoxPos[1]+movement[1]), movement, newBoxes, keys + keys[-1])
 
-                        elif self.isWall[newBoxPos[0]-1][newBoxPos[1]+movement[1]]: #se tem parede á esquerda e não tem parede á direita
-                            if (newBoxPos[0], newBoxPos[1]+movement[1]) not in newBoxes and not self.isBlocked[newBoxPos[0]][newBoxPos[1]+movement[1]]:#se na posição seguinte não está uma caixa nem uma parede
-                                if (newBoxPos[0], newBoxPos[1]+movement[1]*2) not in newBoxes and not self.isBlocked[newBoxPos[0]][newBoxPos[1]+movement[1]*2]:
-                                    if not self.isWall[newBoxPos[0]+1][newBoxPos[1]+2*movement[1]] and (newBoxPos[0]+1, newBoxPos[1]+movement[1]*2) not in newBoxes:
-                                        if (newBoxPos[0]+1, newBoxPos[1]+movement[1]) not in newBoxes:
-                                            keys += keys[-1]
-                                            newBoxes = [b for b in newBoxes if b != newBoxPos]
-                                            currBoxPos = newBoxPos
-                                            newBoxPos = (newBoxPos[0], newBoxPos[1]+movement[1])
-                                            newBoxes.append(newBoxPos)
-                                            continue
-                        
-
-                isTunnel= False
+                    elif self.isWall[newBoxPos[0]-1][newBoxPos[1]+movement[1]]: #se tem parede á esquerda e não tem parede á direita
+                        if not self.isBlocked[newBoxPos[0]][newBoxPos[1]+movement[1]*2] and (newBoxPos[0], newBoxPos[1]+movement[1]*2) not in newBoxes:
+                            if not self.isWall[newBoxPos[0]+1][newBoxPos[1]+2*movement[1]] and (newBoxPos[0]+1, newBoxPos[1]+movement[1]*2) not in newBoxes:
+                                if not self.isBlocked[newBoxPos[0]][newBoxPos[1]+movement[1]] and (newBoxPos[0], newBoxPos[1]+movement[1]) not in newBoxes:
+                                    if (newBoxPos[0]+1, newBoxPos[1]+movement[1]) not in newBoxes:
+                                        currBoxPos, newBoxPos, keys = self.tunnel(newBoxPos, (newBoxPos[0], newBoxPos[1]+movement[1]), movement, newBoxes, keys + keys[-1])
+                    
         else: #andou em x  1 + 1 -> baixo    1 - 1 -> cima
-            while isTunnel:
-                if not (0 < newBoxPos[0]+2*movement[0] < self.mapa.size[0]):
-                    isTunnel = False
-                    continue
+            if not (0 < newBoxPos[0]+2*movement[0] < self.mapa.size[0]):
+                return currBoxPos, newBoxPos, keys
 
-                if newBoxPos not in self.goals: #se a nova posicao da caixa n esta nos objetivos
-                    if self.isWall[newBoxPos[0]][newBoxPos[1]+1] or self.isWall[newBoxPos[0]][newBoxPos[1]-1]: #se tem uma parede em baixo ou em cima
-                        if self.isWall[newBoxPos[0]+movement[0]][newBoxPos[1]+1] and self.isWall[newBoxPos[0]+movement[0]][newBoxPos[1]-1]: #se na posicao a seguir estiver rodeado de duas paredes
-                            if (newBoxPos[0] + movement[0], newBoxPos[1]) not in newBoxes and not self.isBlocked[newBoxPos[0]+movement[0]][newBoxPos[1]]:#se na posicao seguinte nao esta nem uma caixa nem uma parede
-                                keys += keys[-1]
-                                newBoxes = [b for b in newBoxes if b != newBoxPos]
-                                currBoxPos = newBoxPos
-                                newBoxPos = (newBoxPos[0]+movement[0], newBoxPos[1])
-                                newBoxes.append(newBoxPos)
-                                continue
-                        
-                        elif self.isWall[newBoxPos[0]+movement[0]][newBoxPos[1]+1]: #se na posicao seguinte tem parede em baixo mas nao tem em cima
-                            if (newBoxPos[0] + movement[0], newBoxPos[1]) not in newBoxes and not self.isBlocked[newBoxPos[0]+movement[0]][newBoxPos[1]]:#se na posicao seguinte nao esta nem uma caixa nem uma parede
-                                if (newBoxPos[0] + movement[0]*2, newBoxPos[1]) not in newBoxes and not self.isBlocked[newBoxPos[0]+movement[0]*2][newBoxPos[1]]:
-                                    if not self.isWall[newBoxPos[0]+2*movement[0]][newBoxPos[1]-1] and (newBoxPos[0] + movement[0]*2, newBoxPos[1]-1) not in newBoxes:
-                                        if (newBoxPos[0] + movement[0], newBoxPos[1]-1) not in newBoxes:
-                                            keys += keys[-1]
-                                            newBoxes = [b for b in newBoxes if b != newBoxPos]
-                                            currBoxPos = newBoxPos
-                                            newBoxPos = (newBoxPos[0]+movement[0], newBoxPos[1])
-                                            newBoxes.append(newBoxPos)
-                                            continue
-                        elif self.isWall[newBoxPos[0]+movement[0]][newBoxPos[1]-1]: #se na posicao seguinte tem parede em baixo mas nao tem em cima
-                            if (newBoxPos[0] + movement[0], newBoxPos[1]) not in newBoxes and not self.isBlocked[newBoxPos[0]+movement[0]][newBoxPos[1]]:#se na posicao seguinte nao esta nem uma caixa nem uma parede
-                                if (newBoxPos[0] + movement[0]*2, newBoxPos[1]) not in newBoxes and not self.isBlocked[newBoxPos[0]+movement[0]*2][newBoxPos[1]]:
-                                    if not self.isWall[newBoxPos[0]+2*movement[0]][newBoxPos[1]+1] and (newBoxPos[0] + movement[0]*2, newBoxPos[1]+1) not in newBoxes:
-                                        if (newBoxPos[0] + movement[0], newBoxPos[1]+1) not in newBoxes:
-                                            keys += keys[-1]
-                                            newBoxes = [b for b in newBoxes if b != newBoxPos]
-                                            currBoxPos = newBoxPos
-                                            newBoxPos = (newBoxPos[0]+movement[0], newBoxPos[1])
-                                            newBoxes.append(newBoxPos)
-                                            continue
-                        
+            if newBoxPos not in self.goals: #se a nova posicao da caixa n esta nos objetivos
+                if self.isWall[newBoxPos[0]][newBoxPos[1]+1] or self.isWall[newBoxPos[0]][newBoxPos[1]-1]: #se tem uma parede em baixo ou em cima
+                    if self.isWall[newBoxPos[0]+movement[0]][newBoxPos[1]+1] and self.isWall[newBoxPos[0]+movement[0]][newBoxPos[1]-1]: #se na posicao a seguir estiver rodeado de duas paredes
+                        if not self.isBlocked[newBoxPos[0]+movement[0]][newBoxPos[1]] and (newBoxPos[0] + movement[0], newBoxPos[1]) not in newBoxes:#se na posicao seguinte nao esta nem uma caixa nem uma parede
+                            currBoxPos, newBoxPos, keys = self.tunnel(newBoxPos, (newBoxPos[0]+movement[0], newBoxPos[1]), movement, newBoxes, keys + keys[-1])
+                    
+                    elif self.isWall[newBoxPos[0]+movement[0]][newBoxPos[1]+1]: #se na posicao seguinte tem parede em baixo mas nao tem em cima
+                        if not self.isBlocked[newBoxPos[0]+movement[0]*2][newBoxPos[1]] and (newBoxPos[0] + movement[0]*2, newBoxPos[1]) not in newBoxes:
+                            if not self.isWall[newBoxPos[0]+2*movement[0]][newBoxPos[1]-1] and (newBoxPos[0] + movement[0]*2, newBoxPos[1]-1) not in newBoxes:
+                                if not self.isBlocked[newBoxPos[0]+movement[0]][newBoxPos[1]] and (newBoxPos[0] + movement[0], newBoxPos[1]) not in newBoxes:
+                                    if (newBoxPos[0] + movement[0], newBoxPos[1]-1) not in newBoxes:
+                                        currBoxPos, newBoxPos, keys = self.tunnel(newBoxPos, (newBoxPos[0]+movement[0], newBoxPos[1]), movement, newBoxes, keys + keys[-1])
 
-                isTunnel= False
-                
-        return currBoxPos,newBoxPos,newBoxes,keys
+                    elif self.isWall[newBoxPos[0]+movement[0]][newBoxPos[1]-1]: #se na posicao seguinte tem parede em baixo mas nao tem em cima
+                        if not self.isBlocked[newBoxPos[0]+movement[0]*2][newBoxPos[1]] and (newBoxPos[0] + movement[0]*2, newBoxPos[1]) not in newBoxes:
+                            if not self.isWall[newBoxPos[0]+2*movement[0]][newBoxPos[1]+1] and (newBoxPos[0] + movement[0]*2, newBoxPos[1]+1) not in newBoxes:
+                                if not self.isBlocked[newBoxPos[0]+movement[0]][newBoxPos[1]] and (newBoxPos[0] + movement[0], newBoxPos[1]) not in newBoxes:
+                                    if (newBoxPos[0] + movement[0], newBoxPos[1]+1) not in newBoxes:
+                                        currBoxPos, newBoxPos, keys = self.tunnel(newBoxPos, (newBoxPos[0]+movement[0], newBoxPos[1]), movement, newBoxes, keys + keys[-1])
+                    
+        return currBoxPos, newBoxPos, keys
 
 
     # procurar a solucao
@@ -486,9 +446,11 @@ class SearchTree:
                 if self.isBoxed(newBoxPos, newBoxes):
                     continue
 
+                """
                 if len(self.goals)>=4:
                     if self.deadlock(newBoxPos, newBoxes):
                         continue
+                """
 
                 #verificar se ha um caminho para o keeper
                 if node.state[1] != newKeeperPos:
@@ -503,7 +465,9 @@ class SearchTree:
                 
                 keys += key
 
-                currBoxPos, newBoxPos, newBoxes, keys = self.tunnel(currBoxPos, newBoxPos,movement,newBoxes,keys)
+                newBoxes = [box for box in newBoxes if box != newBoxPos]
+                currBoxPos, newBoxPos, keys = self.tunnel(currBoxPos, newBoxPos,movement,newBoxes,keys)
+                newBoxes.append(newBoxPos)
 
                 if (frozenset(newBoxes), currBoxPos) in self.visitedNodes:
                     continue
