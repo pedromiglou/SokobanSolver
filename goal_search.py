@@ -303,6 +303,45 @@ class SearchTree:
         
         return False
 
+    def deadlock(self, boxPos, newBoxes):
+        # DeadLock Pattern 1
+        if (boxPos[0]+1, boxPos[1]) in newBoxes:  # There is a box to the right
+            wall1 = (boxPos[0]-1, boxPos[1]+1)    # Wall x-1, y+1
+            wall2 = (boxPos[0], boxPos[1]+2)      # Wall x, y+2
+            wall3 = (boxPos[0]+1, boxPos[1]+2)    # Wall x+1, y+2
+            wall4 = (boxPos[0]+2, boxPos[1]+1)    # Wall x+2, y+1
+            if  not (wall1[0] > self.mapa.size[0]-1 or wall1[1] > self.mapa.size[1]-1 or wall2[0] > self.mapa.size[0]-1 or wall2[1] > self.mapa.size[1]-1 or wall3[0] > self.mapa.size[0]-1 or wall3[1] > self.mapa.size[1]-1 or wall4[0] > self.mapa.size[0]-1 or wall4[1] > self.mapa.size[1]-1):
+                if self.isWall[wall1[0]][wall1[1]] and self.isWall[wall2[0]][wall2[1]] and self.isWall[wall3[0]][wall3[1]] and self.isWall[wall4[0]][wall4[1]]:
+                    return True
+
+        if (boxPos[0]-1, boxPos[1]) in newBoxes:  # There is a box to the right
+            wall1 = (boxPos[0]+1, boxPos[1]+1)    # Wall x+1, y+1
+            wall2 = (boxPos[0], boxPos[1]+2)      # Wall x, y+2
+            wall3 = (boxPos[0]-1, boxPos[1]+2)    # Wall x-1, y+2
+            wall4 = (boxPos[0]-2, boxPos[1]+1)    # Wall x-2, y+1
+            if  not (wall1[0] > self.mapa.size[0]-1 or wall1[1] > self.mapa.size[1]-1 or wall2[0] > self.mapa.size[0]-1 or wall2[1] > self.mapa.size[1]-1 or wall3[0] > self.mapa.size[0]-1 or wall3[1] > self.mapa.size[1]-1 or wall4[0] > self.mapa.size[0]-1 or wall4[1] > self.mapa.size[1]-1):
+                if self.isWall[wall1[0]][wall1[1]] and self.isWall[wall2[0]][wall2[1]] and self.isWall[wall3[0]][wall3[1]] and self.isWall[wall4[0]][wall4[1]]:
+                    return True
+        # DeadLock Pattern 2
+        box_upPos = self.isWall[boxPos[0]][boxPos[1]-1] or (boxPos[0], boxPos[1]-1) in newBoxes
+        box_downPos = self.isWall[boxPos[0]][boxPos[1]+1] or (boxPos[0], boxPos[1]+1) in newBoxes
+        box_leftPos = self.isWall[boxPos[0]-1][boxPos[1]] or (boxPos[0]-1, boxPos[1]) in newBoxes
+        box_rightPos = self.isWall[boxPos[0]+1][boxPos[1]] or (boxPos[0]+1, boxPos[1]) in newBoxes
+        box_upRightPos = self.isWall[boxPos[0]+1][boxPos[1]+1] or (boxPos[0]+1, boxPos[1]+1) in newBoxes
+        box_upLeftPos = self.isWall[boxPos[0]-1][boxPos[1]+1] or (boxPos[0]-1, boxPos[1]+1) in newBoxes
+        box_downRightPos = self.isWall[boxPos[0]+1][boxPos[1]-1] or (boxPos[0]+1, boxPos[1]-1) in newBoxes
+        box_downLeftPos = self.isWall[boxPos[0]-1][boxPos[1]-1] or (boxPos[0]-1, boxPos[1]-1) in newBoxes
+
+        if box_leftPos and box_upPos and box_upLeftPos:
+            return True
+        if box_rightPos and box_upPos and box_upRightPos:
+            return True
+        if box_rightPos and box_downPos and box_downRightPos:
+            return True
+        if box_leftPos and box_downPos and box_downLeftPos:
+            return True
+        return False
+
     def tunnel(self, currBoxPos, newBoxPos, movement, newBoxes, keys):
         isTunnel = True
         
@@ -447,6 +486,10 @@ class SearchTree:
                 if self.isBoxed(newBoxPos, newBoxes):
                     continue
 
+                if len(self.goals)>=4:
+                    if self.deadlock(newBoxPos, newBoxes):
+                        continue
+
                 #verificar se ha um caminho para o keeper
                 if node.state[1] != newKeeperPos:
                     agentSearch = SearchAgent(self.isWall, node.state[0], node.state[1], newKeeperPos)
@@ -466,6 +509,20 @@ class SearchTree:
                     continue
                 else:
                     self.visitedNodes.add((frozenset(newBoxes), currBoxPos))
+
+                ################################################################################################
+                ## CODE FOR TESTING PURPOSES
+                #currMap = deepcopy(self.mapa)
+                # Clear map of all entities
+                #for tile in self.mapa.filter_tiles([Tiles.BOX, Tiles.BOX_ON_GOAL, Tiles.MAN, Tiles.MAN_ON_GOAL]):
+                #    currMap.clear_tile(tile)
+                # Set boxes
+                #for b in newBoxes:
+                #    currMap.set_tile(b, Tiles.BOX)
+                # Set keeper
+                #currMap.set_tile(currBoxPos, Tiles.MAN)
+                #print(currMap, "\n")
+                ################################################################################################
 
                 newnode = SearchNode((frozenset(newBoxes), currBoxPos), node, keys, node.depth+1, node.cost+addFactor, self.heuristic(newBoxes))
                 #adicionar o novo Node à lista e sort ao mesmo tempo
