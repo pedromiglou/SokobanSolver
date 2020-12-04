@@ -32,21 +32,164 @@ class SearchTree:
         self.mapa = mapa
         self.open_nodes = [self.root]
         self.goals = self.mapa.filter_tiles([Tiles.GOAL, Tiles.BOX_ON_GOAL, Tiles.MAN_ON_GOAL])
-        self.defineWalls()
         self.visitedNodes = set()
-        self.isWall = []
-        self.isBlocked = []
+        self.isWall = [] #True se for parede
+        self.isBlocked = [] #True se resultar em deadlock
         for x in range(mapa.size[0]):
             self.isWall.append([])
             self.isBlocked.append([])
             for y in range(mapa.size[1]):
                 self.isWall[x].append(mapa.get_tile((x,y)) == Tiles.WALL)
-                self.isBlocked[x].append(True if self.isWall[x][y] else self.isWalled((x,y)))
+                self.isBlocked[x].append(self.isWall[x][y])
+        
+        self.isWalled_Outer()
+        self.isWalled_Inner()
         
         for x in range(1, mapa.size[0]-1):
             for y in range(1, mapa.size[1]-1):
                 self.isBlocked[x][y] = True if self.isBlocked[x][y] else self.isCornered((x,y))
 
+    #block positions next to outer wall with no goals
+    def isWalled_Outer(self):
+        dim = self.mapa.size
+
+        # All walls start out as blocked, meaning they don't have goals and the box should never reach them
+        self.leftBlock = True
+        self.upBlock = True
+        self.rightBlock = True
+        self.botBlock = True
+
+        # If there is a goal on a certain border, that border will no longer be blocked
+        for goalPos in self.goals:
+            if goalPos[0] == 1:
+                self.leftBlock = False
+            if goalPos[1] == 1:
+                self.upBlock = False
+            if goalPos[0] == (dim[0] - 2):
+                self.rightBlock = False
+            if goalPos[1] == (dim[1] - 2):
+                self.botBlock = False
+
+        # Check if the box position in a blocked wall
+        if self.leftBlock:
+            for i in range(dim[1]):
+                self.isBlocked[1][i] = True
+        
+        if self.rightBlock:
+            for i in range(dim[1]):
+                self.isBlocked[dim[0]-2][i] = True
+        
+        if self.upBlock:
+            for i in range(dim[0]):
+                self.isBlocked[i][1] = True
+        
+        if self.botBlock:
+            for i in range(dim[0]):
+                self.isBlocked[i][dim[1]-2] = True
+    
+    #block positions next to inner walls with no goals that result in deadlock
+    def isWalled_Inner(self):
+        dim = self.mapa.size
+
+        for x in range(1, dim[0]-1):
+            for y in range(1, dim[1]-1):
+                if not self.isBlocked[x][y]:
+                    
+                    #verify if it is blocked to the left
+                    isBlocked_Left = True
+                    i = x
+                    toBlock = []
+                    while 0<i:
+                        if self.isWall[i][y]:
+                            break
+
+                        if not(self.isWall[i][y-1] or self.isWall[i][y+1]) or (i, y) in self.goals:
+                            isBlocked_Left = False
+                            break
+
+                        toBlock.append((i,y))
+                        i -= 1
+                    
+                    if not isBlocked_Left:
+                        continue
+                    else:
+                        #if blocked to the left verify to the right
+                        isBlocked_Right = True
+                        i = x+1
+                        while i<dim[0]-1:
+                            if self.isWall[i][y]:
+                                break
+
+                            if not(self.isWall[i][y-1] or self.isWall[i][y+1]) or (i, y) in self.goals:
+                                isBlocked_Right = False
+                                break
+
+                            toBlock.append((i,y))
+                            i += 1
+
+                        if isBlocked_Right:
+                            for tile in toBlock:
+                                self.isBlocked[tile[0]][tile[1]] = True
+                    
+                    #verify if blocked upwards
+                    isBlocked_Up = True
+                    j=y
+                    toBlock = []
+                    while 0<j:
+                        if self.isWall[x][j]:
+                            break
+
+                        if not(self.isWall[x-1][j] or self.isWall[x+1][j]) or (x, j) in self.goals:
+                            isBlocked_Up = False
+                            break
+
+                        toBlock.append((x,j))
+                        j -= 1
+                    
+                    if not isBlocked_Up:
+                        continue
+                    else:
+                        #verify if blocked downwards
+                        isBlocked_Down = True
+                        j = y+1
+                        while j<dim[1]-1:
+                            if self.isWall[x][j]:
+                                break
+
+                            if not(self.isWall[x-1][j] or self.isWall[x+1][j]) or (x, j) in self.goals:
+                                isBlocked_Down = False
+                                break
+
+                            toBlock.append((x,j))
+                            j += 1
+
+                        if isBlocked_Down:
+                            for tile in toBlock:
+                                self.isBlocked[tile[0]][tile[1]] = True
+    
+    #block corners
+    def isCornered(self, boxPos):
+
+        # If the box is on goal, it is not considered a cornered box since it could be part of the solution
+        if boxPos in self.goals:
+            return False
+            
+        # Positions = (Up, Down, Left Right)
+        box_upPos = self.isWall[boxPos[0]][boxPos[1]-1]
+        box_downPos = self.isWall[boxPos[0]][boxPos[1]+1]
+        box_leftPos = self.isWall[boxPos[0]-1][boxPos[1]]
+        box_rightPos = self.isWall[boxPos[0]+1][boxPos[1]]
+
+        if box_leftPos and box_upPos:
+            return True
+        if box_upPos and box_rightPos:
+            return True
+        if box_rightPos and box_downPos:
+            return True
+        if box_downPos and box_leftPos:
+            return True
+
+        return False
 
     # obter o caminho (de teclas) da raiz ate um no
     def get_keys(self,node):
@@ -114,50 +257,7 @@ class SearchTree:
             results.append(aux)
         
         return sum([min(a) for a in results])
-    ''' 
-
-    def isCornered(self, boxPos):
-        #if boxPos[0] == 0 or boxPos[1] == 0 or boxPos[0] == self.mapa.size[0]-1 or boxPos[1] == self.mapa.size[1]-1:
-        #    return True
-
-        # If the box is on goal, it is not considered a cornered box since it could be part of the solution
-        if boxPos in self.goals:
-            return False
-            
-        # Positions = (Up, Down, Left Right)
-        box_upPos = self.isWall[boxPos[0]][boxPos[1]-1]
-        box_downPos = self.isWall[boxPos[0]][boxPos[1]+1]
-        box_leftPos = self.isWall[boxPos[0]-1][boxPos[1]]
-        box_rightPos = self.isWall[boxPos[0]+1][boxPos[1]]
-
-        if box_leftPos and box_upPos:
-            return True
-        if box_upPos and box_rightPos:
-            return True
-        if box_rightPos and box_downPos:
-            return True
-        if box_downPos and box_leftPos:
-            return True
-
-        return False
-
-    def isWalled(self, boxPos):
-        if not (self.leftBlock or self.upBlock or self.botBlock or self.rightBlock):
-            return False
-
-        dim = self.mapa.size
-
-        # Check if the box position in a blocked wall
-        if boxPos[0] == 1 and self.leftBlock:
-            return True
-        if boxPos[1] == 1 and self.upBlock:
-            return True
-        if boxPos[0] == (dim[0] - 2) and self.rightBlock:
-            return True
-        if boxPos[1] == (dim[1] - 2) and self.botBlock:
-            return True
-
-        return False
+    '''
         
     def isBoxed(self, newBoxPos, allBoxPos):
         x = newBoxPos[0]
@@ -202,26 +302,6 @@ class SearchTree:
                     return True
         
         return False
-
-    def defineWalls(self):
-        dim = self.mapa.size
-
-        # All walls start out as blocked, meaning they don't have goals and the box should never reach them
-        self.leftBlock = True
-        self.upBlock = True
-        self.rightBlock = True
-        self.botBlock = True
-
-        # If there is a goal on a certain border, that border will no longer be blocked
-        for goalPos in self.goals:
-            if goalPos[0] == 1:
-                self.leftBlock = False
-            if goalPos[1] == 1:
-                self.upBlock = False
-            if goalPos[0] == (dim[0] - 2):
-                self.rightBlock = False
-            if goalPos[1] == (dim[1] - 2):
-                self.botBlock = False
 
     def tunnel(self, currBoxPos, newBoxPos, movement, newBoxes, keys):
         isTunnel = True
@@ -360,12 +440,6 @@ class SearchTree:
 
                 if newBoxPos in node.state[0] or newKeeperPos in node.state[0]:
                     continue
-
-                #if self.isWalled(newBoxPos):
-                #    continue
-
-                #if self.isCornered(newBoxPos):
-                #    continue
 
                 newBoxes = [b for b in node.state[0] if b != currBoxPos]
                 newBoxes.append(newBoxPos)
