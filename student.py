@@ -3,6 +3,7 @@ import getpass
 import json
 import os
 import random
+import sys
 
 import websockets
 from mapa import Map
@@ -52,6 +53,7 @@ async def agent_loop(puzzle, solution, server_address="localhost:8000", agent_na
 
             except websockets.exceptions.ConnectionClosedOK:
                 print("Server has cleanly disconnected us")
+                sys.exit(0)
                 return
 
 # DO NOT CHANGE THE LINES BELLOW

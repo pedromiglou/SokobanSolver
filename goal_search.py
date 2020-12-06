@@ -5,16 +5,29 @@ from agent_search import SearchAgent
 from bisect import insort_left
 from array import *
 
-# No de uma arvore de pesquisa
-class SearchNode:
-    def __init__(self, state, parent, key, depth, cost, heuristic): 
+# No de uma arvore de pesquisa usando breath
+class BreathNode:
+    def __init__(self, state, parent, keys, goals):
         self.state = state
-        #self.reducedState = str(sorted(self.state.boxes)) + str(self.state.keeper)
         self.parent = parent
-        self.keys = key
-        self.depth = depth
-        self.cost = cost
-        self.heuristic = heuristic
+        self.keys = keys
+        self.depth = parent.depth + 1 if parent!=None else 0
+
+    def __str__(self):
+        return "no(" + str(self.state) + "," + str(self.parent) + ")"
+
+    #funcao para fazer sort sem usar sempre key
+    def __lt__(self, other):
+        return self.depth < other.depth
+
+# No de uma arvore de pesquisa usando A*
+class StarNode:
+    def __init__(self, state, parent, keys, goals):
+        self.state = state
+        self.parent = parent
+        self.keys = keys
+        self.cost = parent.cost + len(keys)/20 if parent!=None else len(keys)/20
+        self.heuristic = self.heuristicCalc(goals)
 
     def __str__(self):
         return "no(" + str(self.state) + "," + str(self.parent) + ")"
@@ -22,17 +35,57 @@ class SearchNode:
     #funcao para fazer sort sem usar sempre key
     def __lt__(self, other):
         return self.cost + self.heuristic < other.cost + other.heuristic
-        #return self.heuristic < other.heuristic
+    
+    # calculo da heuristica
+    def heuristicCalc(self, goals):
+        goals = [goal for goal in goals if goal not in self.state[0]]
+        boxes = [box for box in self.state[0] if box not in goals]
+
+        if len(goals) == 0:
+            return 0
+        
+        if len(goals) == 1:
+            return abs(boxes[0][0]-goals[0][0]) + abs(boxes[0][1]-goals[0][1])
+
+        size = len(goals)
+
+        l = []
+        for i in range(size):
+            l.append([])
+            for j in range(size):
+                l[i].append(abs(boxes[i][0]-goals[j][0]) + abs(boxes[i][1]-goals[j][1]))
+
+        bestcost=[10000000]
+        cost = min([(l[0][i], i) for i in range(size)])
+        self.auxBruteForce(l, [cost[1]], 1, size, cost[0], bestcost)
+        return bestcost[0]
+    
+    def auxBruteForce(self, l, selected, row, size, cost, bestcost):
+        for i in range(size):
+            if i not in selected:
+                if row != size-1:
+                    if cost + l[row][i] >= bestcost[0]:
+                        return
+                    self.auxBruteForce(l, selected + [i], row+1, size, cost+l[row][i], bestcost)
+                else:
+                    if bestcost[0] > cost + l[row][i]:
+                        bestcost[0] = cost + l[row][i]
 
 # Arvore de pesquisa
 class SearchTree:
     # construtor
     def __init__(self, mapa):
-        self.root = SearchNode((set(mapa.boxes), mapa.keeper), None, "", 0, 0, None)
+        self.goals = mapa.filter_tiles([Tiles.GOAL, Tiles.BOX_ON_GOAL, Tiles.MAN_ON_GOAL])
+        if mapa.size[0]*mapa.size[1]*len(self.goals) > 450:
+            self.SearchNode = StarNode
+        else:
+            self.SearchNode = BreathNode
+
+        self.root = self.SearchNode((frozenset(mapa.boxes), mapa.keeper), None, "", self.goals)
         self.mapa = mapa
         self.open_nodes = [self.root]
-        self.goals = self.mapa.filter_tiles([Tiles.GOAL, Tiles.BOX_ON_GOAL, Tiles.MAN_ON_GOAL])
         self.visitedNodes = set()
+        self.visitedNodes.add(self.root.state)
         self.isWall = [] #True se for parede
         self.isBlocked = [] #True se resultar em deadlock
         for x in range(mapa.size[0]):
@@ -197,41 +250,6 @@ class SearchTree:
             return node.keys
         else:
             return self.get_keys(node.parent) + node.keys
-    
-    # calculo da heuristica
-    def heuristic(self, boxes):
-        goals = [goal for goal in self.goals if goal not in boxes]
-        boxes = [box for box in boxes if box not in self.goals]
-
-        if len(goals) == 0:
-            return 0
-        
-        if len(goals) == 1:
-            return abs(boxes[0][0]-goals[0][0]) + abs(boxes[0][1]-goals[0][1])
-
-        size = len(goals)
-
-        l = []
-        for i in range(size):
-            l.append([])
-            for j in range(size):
-                l[i].append(abs(boxes[i][0]-goals[j][0]) + abs(boxes[i][1]-goals[j][1]))
-
-        bestcost=[10000000]
-        cost = min([(l[0][i], i) for i in range(size)])
-        self.auxBruteForce(l, [cost[1]], 1, size, cost[0], bestcost)
-        return bestcost[0]
-    
-    def auxBruteForce(self, l, selected, row, size, cost, bestcost):
-        for i in range(size):
-            if i not in selected:
-                if row != size-1:
-                    if cost + l[row][i] >= bestcost[0]:
-                        return
-                    self.auxBruteForce(l, selected + [i], row+1, size, cost+l[row][i], bestcost)
-                else:
-                    if bestcost[0] > cost + l[row][i]:
-                        bestcost[0] = cost + l[row][i]
 
     '''
     async def computeLowerBound(self, mapa):
@@ -475,8 +493,6 @@ class SearchTree:
                 else:
                     keys = ""
                 
-                addFactor = len(keys)/20
-                
                 keys += key
 
                 newBoxes = [box for box in newBoxes if box != newBoxPos]
@@ -502,7 +518,7 @@ class SearchTree:
                 #print(currMap, "\n")
                 ################################################################################################
 
-                newnode = SearchNode((frozenset(newBoxes), currBoxPos), node, keys, node.depth+1, node.cost+addFactor, self.heuristic(newBoxes))
+                newnode = self.SearchNode((frozenset(newBoxes), currBoxPos), node, keys, self.goals)
                 #adicionar o novo Node à lista e sort ao mesmo tempo
                 insort_left(self.open_nodes, newnode)
 
