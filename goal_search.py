@@ -38,16 +38,15 @@ class StarNode:
     
     # calculo da heuristica
     def heuristicCalc(self, goals):
-        goals = [goal for goal in goals if goal not in self.state[0]]
         boxes = [box for box in self.state[0] if box not in goals]
+        goals = [goal for goal in goals if goal not in self.state[0]]
+        size = len(goals)
 
-        if len(goals) == 0:
+        if size == 0:
             return 0
         
-        if len(goals) == 1:
+        if size == 1:
             return abs(boxes[0][0]-goals[0][0]) + abs(boxes[0][1]-goals[0][1])
-
-        size = len(goals)
 
         l = []
         for i in range(size):
@@ -75,17 +74,20 @@ class StarNode:
 class SearchTree:
     # construtor
     def __init__(self, mapa):
+        self.mapa = mapa
+        self.size = mapa.size
         self.goals = mapa.filter_tiles([Tiles.GOAL, Tiles.BOX_ON_GOAL, Tiles.MAN_ON_GOAL])
-        if mapa.size[0]*mapa.size[1]*len(self.goals) > 450:
+
+        if self.size[0]*self.size[1]*len(self.goals) > 450:
             self.SearchNode = StarNode
         else:
             self.SearchNode = BreathNode
 
         self.root = self.SearchNode((frozenset(mapa.boxes), mapa.keeper), None, "", self.goals)
-        self.mapa = mapa
         self.open_nodes = [self.root]
         self.visitedNodes = set()
         self.visitedNodes.add(self.root.state)
+
         self.isWall = [] #True se for parede
         self.isBlocked = [] #True se resultar em deadlock
         for x in range(mapa.size[0]):
@@ -104,8 +106,6 @@ class SearchTree:
 
     #block positions next to outer wall with no goals
     def isWalled_Outer(self):
-        dim = self.mapa.size
-
         # All walls start out as blocked, meaning they don't have goals and the box should never reach them
         self.leftBlock = True
         self.upBlock = True
@@ -118,59 +118,44 @@ class SearchTree:
                 self.leftBlock = False
             if goalPos[1] == 1:
                 self.upBlock = False
-            if goalPos[0] == (dim[0] - 2):
+            if goalPos[0] == (self.size[0] - 2):
                 self.rightBlock = False
-            if goalPos[1] == (dim[1] - 2):
+            if goalPos[1] == (self.size[1] - 2):
                 self.botBlock = False
 
         # Check if the box position in a blocked wall
         if self.leftBlock:
-            for i in range(dim[1]):
+            for i in range(self.size[1]):
                 self.isBlocked[1][i] = True
         
         if self.rightBlock:
-            for i in range(dim[1]):
-                self.isBlocked[dim[0]-2][i] = True
+            for i in range(self.size[1]):
+                self.isBlocked[self.size[0]-2][i] = True
         
         if self.upBlock:
-            for i in range(dim[0]):
+            for i in range(self.size[0]):
                 self.isBlocked[i][1] = True
         
         if self.botBlock:
-            for i in range(dim[0]):
-                self.isBlocked[i][dim[1]-2] = True
+            for i in range(self.size[0]):
+                self.isBlocked[i][self.size[1]-2] = True
     
     #block positions next to inner walls with no goals that result in deadlock
     def isWalled_Inner(self):
-        dim = self.mapa.size
-
-        for x in range(1, dim[0]-1):
-            for y in range(1, dim[1]-1):
+        for x in range(1, self.size[0]-1):
+            for y in range(1, self.size[1]-1):
                 if not self.isBlocked[x][y]:
                     
-                    #verify if it is blocked to the left
-                    isBlocked_Left = True
-                    i = x
-                    toBlock = []
-                    while 0<i:
-                        if self.isWall[i][y]:
-                            break
-
-                        if not(self.isWall[i][y-1] or self.isWall[i][y+1]) or (i, y) in self.goals:
-                            isBlocked_Left = False
-                            break
-
-                        toBlock.append((i,y))
-                        i -= 1
-                    
-                    if not isBlocked_Left:
+                    #verify if blocked horizontally
+                    if not self.isBlocked[x-1][y]: #if not blocked to the left it isnt blocked
                         continue
                     else:
                         #if blocked to the left verify to the right
+                        toBlock = []
                         isBlocked_Right = True
-                        i = x+1
-                        while i<dim[0]-1:
-                            if self.isWall[i][y]:
+                        i = x
+                        while i<self.size[0]-1:
+                            if self.isBlocked[i][y]:
                                 break
 
                             if not(self.isWall[i][y-1] or self.isWall[i][y+1]) or (i, y) in self.goals:
@@ -184,29 +169,15 @@ class SearchTree:
                             for tile in toBlock:
                                 self.isBlocked[tile[0]][tile[1]] = True
                     
-                    #verify if blocked upwards
-                    isBlocked_Up = True
-                    j=y
-                    toBlock = []
-                    while 0<j:
-                        if self.isWall[x][j]:
-                            break
-
-                        if not(self.isWall[x-1][j] or self.isWall[x+1][j]) or (x, j) in self.goals:
-                            isBlocked_Up = False
-                            break
-
-                        toBlock.append((x,j))
-                        j -= 1
-                    
-                    if not isBlocked_Up:
+                    #verify if blocked vertically
+                    if not self.isBlocked[x][y-1]: #if not blocked upwards it isnt blocked
                         continue
                     else:
                         #verify if blocked downwards
                         isBlocked_Down = True
-                        j = y+1
-                        while j<dim[1]-1:
-                            if self.isWall[x][j]:
+                        j = y
+                        while j<self.size[1]-1:
+                            if self.isBlocked[x][j]:
                                 break
 
                             if not(self.isWall[x-1][j] or self.isWall[x+1][j]) or (x, j) in self.goals:
@@ -222,7 +193,6 @@ class SearchTree:
     
     #block corners
     def isCornered(self, boxPos):
-
         # If the box is on goal, it is not considered a cornered box since it could be part of the solution
         if boxPos in self.goals:
             return False
