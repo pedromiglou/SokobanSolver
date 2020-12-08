@@ -28,13 +28,12 @@ class SearchAgent:
 		root = AgentNode(initial_pos, None, None, None)
 		self.open_nodes = [root]
 		self.visitedNodes = set()
+		self.visitedNodes.add(initial_pos)
 
 	def get_keys(self, node):
 		if node.parent == None:
 			return ""
-		keyList = self.get_keys(node.parent)
-		keyList += node.key
-		return keyList
+		return self.get_keys(node.parent) + node.key
 
 	def heuristic(self, keeps_pos):
 		return abs(keeps_pos[0]-self.destination[0]) + abs(keeps_pos[1]-self.destination[1])
@@ -46,14 +45,12 @@ class SearchAgent:
 			if node.state == self.destination:
 				return self.get_keys(node)
 			
-			self.visitedNodes.add(node.state)
-			
-			moves = {"d":[1, 0], "a":[-1, 0], "s":[0, 1], "w":[0, -1]}
+			moves = [("d", 1, 0), ("a", -1, 0), ("s", 0, 1), ("w", 0, -1)]
 
-			await asyncio.sleep(0) # this should be 0 in your code and this is REQUIRED
+			#await asyncio.sleep(0) # this should be 0 in your code and this is REQUIRED
 
-			for key in moves:
-				new_keeper_pos = (node.state[0]+moves[key][0], node.state[1]+moves[key][1])
+			for key, movX, movY in moves:
+				new_keeper_pos = (node.state[0]+movX, node.state[1]+movY)
 				
 				# Se a posição não estiver bloqueada
 				if not self.isWall[new_keeper_pos[0]][new_keeper_pos[1]] and new_keeper_pos not in self.boxes:
@@ -61,6 +58,7 @@ class SearchAgent:
 					# não podem haver dois conjuntos de coordenadas iguais na solução
 					#if not self.state_in_path(node, new_keeper_pos):
 					if new_keeper_pos not in self.visitedNodes:
+						self.visitedNodes.add(new_keeper_pos)
 						newnode = AgentNode(new_keeper_pos, node, key, self.heuristic(new_keeper_pos))
 
 						# Ao ordenar os nodes, garante que o node com menor custo está à frente na queue

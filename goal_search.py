@@ -4,14 +4,15 @@ import asyncio
 from agent_search import SearchAgent
 from bisect import insort_left
 from array import *
+import time
 
 # No de uma arvore de pesquisa usando breath
 class BreathNode:
-    def __init__(self, state, parent, keys, goals):
+    def __init__(self, state, parent, keys, depth):
         self.state = state
         self.parent = parent
         self.keys = keys
-        self.depth = parent.depth + 1 if parent!=None else 0
+        self.depth = depth
 
     def __str__(self):
         return "no(" + str(self.state) + "," + str(self.parent) + ")"
@@ -22,68 +23,36 @@ class BreathNode:
 
 # No de uma arvore de pesquisa usando A*
 class StarNode:
-    def __init__(self, state, parent, keys, goals):
+    def __init__(self, state, parent, keys, cost, heuristic):
         self.state = state
         self.parent = parent
         self.keys = keys
-        self.cost = parent.cost + len(keys)/20 if parent!=None else len(keys)/20
-        self.heuristic = self.heuristicCalc(goals)
+        self.cost = cost
+        self.priority = heuristic + cost
 
     def __str__(self):
         return "no(" + str(self.state) + "," + str(self.parent) + ")"
 
     #funcao para fazer sort sem usar sempre key
     def __lt__(self, other):
-        return self.cost + self.heuristic < other.cost + other.heuristic
-    
-    # calculo da heuristica
-    def heuristicCalc(self, goals):
-        boxes = [box for box in self.state[0] if box not in goals]
-        goals = [goal for goal in goals if goal not in self.state[0]]
-        size = len(goals)
-
-        if size == 0:
-            return 0
-        
-        if size == 1:
-            return abs(boxes[0][0]-goals[0][0]) + abs(boxes[0][1]-goals[0][1])
-
-        l = []
-        for i in range(size):
-            l.append([])
-            for j in range(size):
-                l[i].append(abs(boxes[i][0]-goals[j][0]) + abs(boxes[i][1]-goals[j][1]))
-
-        bestcost=[10000000]
-        cost = min([(l[0][i], i) for i in range(size)])
-        self.auxBruteForce(l, [cost[1]], 1, size, cost[0], bestcost)
-        return bestcost[0]
-    
-    def auxBruteForce(self, l, selected, row, size, cost, bestcost):
-        for i in range(size):
-            if i not in selected:
-                if row != size-1:
-                    if cost + l[row][i] >= bestcost[0]:
-                        return
-                    self.auxBruteForce(l, selected + [i], row+1, size, cost+l[row][i], bestcost)
-                else:
-                    if bestcost[0] > cost + l[row][i]:
-                        bestcost[0] = cost + l[row][i]
+        return self.priority < other.priority
 
 # Arvore de pesquisa
 class SearchTree:
     # construtor
     def __init__(self, mapa):
+        self.timer = time.time()
         self.mapa = mapa
         self.size = mapa.size
         self.goals = mapa.filter_tiles([Tiles.GOAL, Tiles.BOX_ON_GOAL, Tiles.MAN_ON_GOAL])
 
         if self.size[0]*self.size[1]*len(self.goals) > 450:
-            self.SearchNode = StarNode
+            self.isSimple = False
+            self.root = StarNode((frozenset(mapa.boxes), mapa.keeper), None, "", 0, 1000000)
         else:
-            self.SearchNode = BreathNode
+            self.isSimple = True
+            self.root = BreathNode((frozenset(mapa.boxes), mapa.keeper), None, "", 0)
 
-        self.root = self.SearchNode((frozenset(mapa.boxes), mapa.keeper), None, "", self.goals)
         self.open_nodes = [self.root]
         self.visitedNodes = set()
         self.visitedNodes.add(self.root.state)
@@ -215,11 +184,62 @@ class SearchTree:
         return False
 
     # obter o caminho (de teclas) da raiz ate um no
-    def get_keys(self,node):
+    async def get_keys(self,node):
         if node.parent == None:
-            return node.keys
+            return ""
         else:
-            return self.get_keys(node.parent) + node.keys
+            agentSearch = SearchAgent(self.isWall, node.parent.state[0], node.parent.state[1], node.destination)
+            keys = await agentSearch.search()
+            parentkeys = await self.get_keys(node.parent)
+            return parentkeys + keys + node.keys if keys!= None else parentkeys + node.keys
+    
+    
+    def heuristic(self, boxes):
+        goals = [goal for goal in self.goals if goal not in boxes]
+        boxes = [box for box in boxes if box not in self.goals]
+
+        h = 0
+        for i in range(len(goals)):
+            h += min([abs(boxes[i][0]-goals[j][0]) + abs(boxes[i][1]-goals[j][1]) for j in range(len(goals))])
+        
+        return h
+    
+    
+    """
+    # calculo da heuristica
+    def heuristic(self, boxes):
+        goals = [goal for goal in self.goals if goal not in boxes]
+        boxes = [box for box in boxes if box not in self.goals]
+        size = len(goals)
+
+        if size == 0:
+            return 0
+        
+        if size == 1:
+            return abs(boxes[0][0]-goals[0][0]) + abs(boxes[0][1]-goals[0][1])
+
+        l = []
+        for i in range(size):
+            l.append([])
+            for j in range(size):
+                l[i].append(abs(boxes[i][0]-goals[j][0]) + abs(boxes[i][1]-goals[j][1]))
+
+        bestcost=[10000000]
+        cost = min([(l[0][i], i) for i in range(size)])
+        self.auxBruteForce(l, [cost[1]], 1, size, cost[0], bestcost)
+        return bestcost[0]
+    
+    def auxBruteForce(self, l, selected, row, size, cost, bestcost):
+        for i in range(size):
+            if i not in selected:
+                if row != size-1:
+                    if cost + l[row][i] >= bestcost[0]:
+                        return
+                    self.auxBruteForce(l, selected + [i], row+1, size, cost+l[row][i], bestcost)
+                else:
+                    if bestcost[0] > cost + l[row][i]:
+                        bestcost[0] = cost + l[row][i]
+    """
 
     '''
     async def computeLowerBound(self, mapa):
@@ -291,6 +311,7 @@ class SearchTree:
         
         return False
 
+    """
     def deadlock(self, boxPos, newBoxes):
         if boxPos in self.goals or (boxPos[0], boxPos[1]+1) in self.goals:
             return False
@@ -343,66 +364,86 @@ class SearchTree:
             if box_leftPos and box_downPos and box_downLeftPos:
                 return True        
         return False
+    """
 
-    def tunnel(self, currBoxPos, newBoxPos, movement, newBoxes, keys):
-        if movement[0] == 0: #andou em y    0 + 1 -> direita ; 0 - 1 -> esquerda
-            if not (0 < newBoxPos[1]+2*movement[1] < self.mapa.size[1]):
+    def tunnel(self, currBoxPos, newBoxPos, movX, movY, newBoxes, keys):
+        if movX == 0: #andou em y    0 + 1 -> direita ; 0 - 1 -> esquerda
+            if not (0 < newBoxPos[1]+2*movY < self.size[1]):
                 return currBoxPos, newBoxPos, keys
 
             if newBoxPos not in self.goals: #se a nova posicao da caixa n esta nos objetivos
                 if self.isWall[newBoxPos[0]+1][newBoxPos[1]] or self.isWall[newBoxPos[0]-1][newBoxPos[1]]: #se tem uma parede á esquerda ou á direita
-                    if self.isWall[newBoxPos[0]+1][newBoxPos[1]+movement[1]] and self.isWall[newBoxPos[0]-1][newBoxPos[1]+movement[1]]: #se na posicao a seguir estiver rodeado de duas paredes
-                        if not self.isBlocked[newBoxPos[0]][newBoxPos[1]+movement[1]] and (newBoxPos[0], newBoxPos[1]+movement[1]) not in newBoxes:#se na posição seguinte não está uma caixa nem uma parede
-                            currBoxPos, newBoxPos, keys = self.tunnel(newBoxPos, (newBoxPos[0], newBoxPos[1]+movement[1]), movement, newBoxes, keys + keys[-1])
+                    if self.isWall[newBoxPos[0]+1][newBoxPos[1]+movY] and self.isWall[newBoxPos[0]-1][newBoxPos[1]+movY]: #se na posicao a seguir estiver rodeado de duas paredes
+                        if not self.isBlocked[newBoxPos[0]][newBoxPos[1]+movY] and (newBoxPos[0], newBoxPos[1]+movY) not in newBoxes:#se na posição seguinte não está uma caixa nem uma parede
+                            currBoxPos, newBoxPos, keys = self.tunnel(newBoxPos, (newBoxPos[0], newBoxPos[1]+movY), movX, movY, newBoxes, keys + keys[-1])
                     
-                    elif self.isWall[newBoxPos[0]+1][newBoxPos[1]+movement[1]]: #se tem parede á direita e não tem parede á esquerda
-                        if not self.isBlocked[newBoxPos[0]][newBoxPos[1]+movement[1]*2] and (newBoxPos[0], newBoxPos[1]+movement[1]*2) not in newBoxes:#se na posição seguinte não está uma caixa nem uma parede
-                            if not self.isWall[newBoxPos[0]-1][newBoxPos[1]+2*movement[1]] and (newBoxPos[0]-1, newBoxPos[1]+movement[1]*2) not in newBoxes:
-                                if not self.isBlocked[newBoxPos[0]][newBoxPos[1]+movement[1]] and (newBoxPos[0], newBoxPos[1]+movement[1]) not in newBoxes:
-                                    if (newBoxPos[0]-1, newBoxPos[1]+movement[1]) not in newBoxes:
-                                        currBoxPos, newBoxPos, keys = self.tunnel(newBoxPos, (newBoxPos[0], newBoxPos[1]+movement[1]), movement, newBoxes, keys + keys[-1])
+                    elif self.isWall[newBoxPos[0]+1][newBoxPos[1]+movY]: #se tem parede á direita e não tem parede á esquerda
+                        if not self.isBlocked[newBoxPos[0]][newBoxPos[1]+movY*2] and (newBoxPos[0], newBoxPos[1]+movY*2) not in newBoxes:#se na posição seguinte não está uma caixa nem uma parede
+                            if not self.isWall[newBoxPos[0]-1][newBoxPos[1]+2*movY] and (newBoxPos[0]-1, newBoxPos[1]+movY*2) not in newBoxes:
+                                if not self.isBlocked[newBoxPos[0]][newBoxPos[1]+movY] and (newBoxPos[0], newBoxPos[1]+movY) not in newBoxes:
+                                    if (newBoxPos[0]-1, newBoxPos[1]+movY) not in newBoxes:
+                                        currBoxPos, newBoxPos, keys = self.tunnel(newBoxPos, (newBoxPos[0], newBoxPos[1]+movY), movX, movY, newBoxes, keys + keys[-1])
 
-                    elif self.isWall[newBoxPos[0]-1][newBoxPos[1]+movement[1]]: #se tem parede á esquerda e não tem parede á direita
-                        if not self.isBlocked[newBoxPos[0]][newBoxPos[1]+movement[1]*2] and (newBoxPos[0], newBoxPos[1]+movement[1]*2) not in newBoxes:
-                            if not self.isWall[newBoxPos[0]+1][newBoxPos[1]+2*movement[1]] and (newBoxPos[0]+1, newBoxPos[1]+movement[1]*2) not in newBoxes:
-                                if not self.isBlocked[newBoxPos[0]][newBoxPos[1]+movement[1]] and (newBoxPos[0], newBoxPos[1]+movement[1]) not in newBoxes:
-                                    if (newBoxPos[0]+1, newBoxPos[1]+movement[1]) not in newBoxes:
-                                        currBoxPos, newBoxPos, keys = self.tunnel(newBoxPos, (newBoxPos[0], newBoxPos[1]+movement[1]), movement, newBoxes, keys + keys[-1])
+                    elif self.isWall[newBoxPos[0]-1][newBoxPos[1]+movY]: #se tem parede á esquerda e não tem parede á direita
+                        if not self.isBlocked[newBoxPos[0]][newBoxPos[1]+movY*2] and (newBoxPos[0], newBoxPos[1]+movY*2) not in newBoxes:
+                            if not self.isWall[newBoxPos[0]+1][newBoxPos[1]+2*movY] and (newBoxPos[0]+1, newBoxPos[1]+movY*2) not in newBoxes:
+                                if not self.isBlocked[newBoxPos[0]][newBoxPos[1]+movY] and (newBoxPos[0], newBoxPos[1]+movY) not in newBoxes:
+                                    if (newBoxPos[0]+1, newBoxPos[1]+movY) not in newBoxes:
+                                        currBoxPos, newBoxPos, keys = self.tunnel(newBoxPos, (newBoxPos[0], newBoxPos[1]+movY), movX, movY, newBoxes, keys + keys[-1])
                     
         else: #andou em x  1 + 1 -> baixo    1 - 1 -> cima
-            if not (0 < newBoxPos[0]+2*movement[0] < self.mapa.size[0]):
+            if not (0 < newBoxPos[0]+2*movX < self.size[0]):
                 return currBoxPos, newBoxPos, keys
 
             if newBoxPos not in self.goals: #se a nova posicao da caixa n esta nos objetivos
                 if self.isWall[newBoxPos[0]][newBoxPos[1]+1] or self.isWall[newBoxPos[0]][newBoxPos[1]-1]: #se tem uma parede em baixo ou em cima
-                    if self.isWall[newBoxPos[0]+movement[0]][newBoxPos[1]+1] and self.isWall[newBoxPos[0]+movement[0]][newBoxPos[1]-1]: #se na posicao a seguir estiver rodeado de duas paredes
-                        if not self.isBlocked[newBoxPos[0]+movement[0]][newBoxPos[1]] and (newBoxPos[0] + movement[0], newBoxPos[1]) not in newBoxes:#se na posicao seguinte nao esta nem uma caixa nem uma parede
-                            currBoxPos, newBoxPos, keys = self.tunnel(newBoxPos, (newBoxPos[0]+movement[0], newBoxPos[1]), movement, newBoxes, keys + keys[-1])
+                    if self.isWall[newBoxPos[0]+movX][newBoxPos[1]+1] and self.isWall[newBoxPos[0]+movX][newBoxPos[1]-1]: #se na posicao a seguir estiver rodeado de duas paredes
+                        if not self.isBlocked[newBoxPos[0]+movX][newBoxPos[1]] and (newBoxPos[0] + movX, newBoxPos[1]) not in newBoxes:#se na posicao seguinte nao esta nem uma caixa nem uma parede
+                            currBoxPos, newBoxPos, keys = self.tunnel(newBoxPos, (newBoxPos[0]+movX, newBoxPos[1]), movX, movY, newBoxes, keys + keys[-1])
                     
-                    elif self.isWall[newBoxPos[0]+movement[0]][newBoxPos[1]+1]: #se na posicao seguinte tem parede em baixo mas nao tem em cima
-                        if not self.isBlocked[newBoxPos[0]+movement[0]*2][newBoxPos[1]] and (newBoxPos[0] + movement[0]*2, newBoxPos[1]) not in newBoxes:
-                            if not self.isWall[newBoxPos[0]+2*movement[0]][newBoxPos[1]-1] and (newBoxPos[0] + movement[0]*2, newBoxPos[1]-1) not in newBoxes:
-                                if not self.isBlocked[newBoxPos[0]+movement[0]][newBoxPos[1]] and (newBoxPos[0] + movement[0], newBoxPos[1]) not in newBoxes:
-                                    if (newBoxPos[0] + movement[0], newBoxPos[1]-1) not in newBoxes:
-                                        currBoxPos, newBoxPos, keys = self.tunnel(newBoxPos, (newBoxPos[0]+movement[0], newBoxPos[1]), movement, newBoxes, keys + keys[-1])
+                    elif self.isWall[newBoxPos[0]+movX][newBoxPos[1]+1]: #se na posicao seguinte tem parede em baixo mas nao tem em cima
+                        if not self.isBlocked[newBoxPos[0]+movX*2][newBoxPos[1]] and (newBoxPos[0] + movX*2, newBoxPos[1]) not in newBoxes:
+                            if not self.isWall[newBoxPos[0]+2*movX][newBoxPos[1]-1] and (newBoxPos[0] + movX*2, newBoxPos[1]-1) not in newBoxes:
+                                if not self.isBlocked[newBoxPos[0]+movX][newBoxPos[1]] and (newBoxPos[0] + movX, newBoxPos[1]) not in newBoxes:
+                                    if (newBoxPos[0] + movX, newBoxPos[1]-1) not in newBoxes:
+                                        currBoxPos, newBoxPos, keys = self.tunnel(newBoxPos, (newBoxPos[0]+movX, newBoxPos[1]), movX, movY, newBoxes, keys + keys[-1])
 
-                    elif self.isWall[newBoxPos[0]+movement[0]][newBoxPos[1]-1]: #se na posicao seguinte tem parede em baixo mas nao tem em cima
-                        if not self.isBlocked[newBoxPos[0]+movement[0]*2][newBoxPos[1]] and (newBoxPos[0] + movement[0]*2, newBoxPos[1]) not in newBoxes:
-                            if not self.isWall[newBoxPos[0]+2*movement[0]][newBoxPos[1]+1] and (newBoxPos[0] + movement[0]*2, newBoxPos[1]+1) not in newBoxes:
-                                if not self.isBlocked[newBoxPos[0]+movement[0]][newBoxPos[1]] and (newBoxPos[0] + movement[0], newBoxPos[1]) not in newBoxes:
-                                    if (newBoxPos[0] + movement[0], newBoxPos[1]+1) not in newBoxes:
-                                        currBoxPos, newBoxPos, keys = self.tunnel(newBoxPos, (newBoxPos[0]+movement[0], newBoxPos[1]), movement, newBoxes, keys + keys[-1])
+                    elif self.isWall[newBoxPos[0]+movX][newBoxPos[1]-1]: #se na posicao seguinte tem parede em baixo mas nao tem em cima
+                        if not self.isBlocked[newBoxPos[0]+movX*2][newBoxPos[1]] and (newBoxPos[0] + movX*2, newBoxPos[1]) not in newBoxes:
+                            if not self.isWall[newBoxPos[0]+2*movX][newBoxPos[1]+1] and (newBoxPos[0] + movX*2, newBoxPos[1]+1) not in newBoxes:
+                                if not self.isBlocked[newBoxPos[0]+movX][newBoxPos[1]] and (newBoxPos[0] + movX, newBoxPos[1]) not in newBoxes:
+                                    if (newBoxPos[0] + movX, newBoxPos[1]+1) not in newBoxes:
+                                        currBoxPos, newBoxPos, keys = self.tunnel(newBoxPos, (newBoxPos[0]+movX, newBoxPos[1]), movX, movY, newBoxes, keys + keys[-1])
                     
         return currBoxPos, newBoxPos, keys
-
+    
+    async def definePassages(self):
+        self.passages = []
+        for x in range(1, self.size[0]-1):
+            for y in range(1, self.size[1]-1):
+                if (x, y) in self.goals or self.isWall[x][y]:
+                    continue
+                if self.isWall[x+1][y] and self.isWall[x-1][y] and not self.isWall[x][y-1] and not self.isWall[x][y+1]: #vertical
+                    a = SearchAgent(self.isWall, [(x,y)], (x,y-1), (x, y+1))
+                    if await a.search() == None:
+                        self.passages.append((x,y))
+                elif not self.isWall[x+1][y] and not self.isWall[x-1][y] and self.isWall[x][y-1] and self.isWall[x][y+1]: #horizontal
+                    a = SearchAgent(self.isWall, [(x,y)], (x-1,y), (x+1, y))
+                    if await a.search() == None:
+                        self.passages.append((x,y))
 
     # procurar a solucao
     async def search(self, limit=None):
         count = 0
         #lowerBound = await self.computeLowerBound(self.mapa)
+        await self.definePassages()
+        print(self.passages)
 
+        #count2 = 0
+        tt = 0
         while self.open_nodes != []:
             node = self.open_nodes.pop(0)
+            #print(str(node.state) + "\n--------------------\n")
             count+=1
             #print(count)
 
@@ -410,8 +451,12 @@ class SearchTree:
             if all([coord in self.goals for coord in node.state[0]]):
                 #print(node.state)
                 print("Number of attempts: ", count, "\n")
-                print(self.get_keys(node))
-                return self.get_keys(node)
+                print("Time: ", time.time()-self.timer, "\n")
+                #print(count2)
+                print(tt)
+                keys = await self.get_keys(node)
+                print(keys)
+                return keys
 
             #if node.state.completed:
             #    print("Number of attempts: ", count, "\n")
@@ -419,21 +464,22 @@ class SearchTree:
 
             await asyncio.sleep(0) # this should be 0 in your code and this is REQUIRED
 
+            #encontrar os tiles para onde o agent pode ir
+            agentSearch = SearchAgent(self.isWall, node.state[0], node.state[1], (0,0))
+            await agentSearch.search()
+            possibleTiles = agentSearch.visitedNodes
+
             #como nao cheguei tenho de obter uma lista de possiveis movimentos das caixas
-            options = dict()
+            options = []
             for box in node.state[0]:
-                options[(box, "d")] = (1, 0)
-                options[(box, "a")] = (-1, 0)
-                options[(box, "s")] = (0, 1)
-                options[(box, "w")] = (0, -1)
-            
+                options.append((box, "d", 1, 0))
+                options.append((box, "a", -1, 0))
+                options.append((box, "s", 0, 1))
+                options.append((box, "w", 0, -1))
 
-            for key, movement in options.items():
-                currBoxPos = key[0]
-                key = key[1]
-
-                newBoxPos = (currBoxPos[0]+movement[0], currBoxPos[1]+movement[1])
-                newKeeperPos = (currBoxPos[0]-movement[0], currBoxPos[1]-movement[1])
+            for currBoxPos, keys, movX, movY in options:
+                newBoxPos = (currBoxPos[0]+movX, currBoxPos[1]+movY)
+                newKeeperPos = (currBoxPos[0]-movX, currBoxPos[1]-movY)
 
                 #verificar se esta a ir contra uma parede ou caixa e verificar se o lugar do keeper esta vazio
                 if self.isWall[newKeeperPos[0]][newKeeperPos[1]] or self.isBlocked[newBoxPos[0]][newBoxPos[1]]:
@@ -443,30 +489,29 @@ class SearchTree:
                     continue
 
                 newBoxes = [b for b in node.state[0] if b != currBoxPos]
-                newBoxes.append(newBoxPos)
 
                 if self.isBoxed(newBoxPos, newBoxes):
                     continue
 
-                """
-                if len(self.goals)>=4:
-                    if self.deadlock(newBoxPos, newBoxes):
-                        continue
-                """
-
                 #verificar se ha um caminho para o keeper
-                if node.state[1] != newKeeperPos:
-                    agentSearch = SearchAgent(self.isWall, node.state[0], node.state[1], newKeeperPos)
-                    keys = await agentSearch.search()
-                    if keys == None:
-                        continue
-                else:
-                    keys = ""
+                if newKeeperPos not in possibleTiles:
+                    continue
                 
-                keys += key
+                addFactor = (abs(node.state[1][0]-newKeeperPos[0]) + abs(node.state[1][1]-newKeeperPos[1]))/20
 
-                newBoxes = [box for box in newBoxes if box != newBoxPos]
-                currBoxPos, newBoxPos, keys = self.tunnel(currBoxPos, newBoxPos,movement,newBoxes,keys)
+                currBoxPos, newBoxPos, keys = self.tunnel(currBoxPos, newBoxPos, movX,movY,newBoxes,keys)
+
+                if newBoxPos in self.passages:
+                    if (newBoxPos[0]+movX, newBoxPos[1]+movY) not in self.goals and (newBoxPos[0]+movX*2, newBoxPos[1]+movY*2) not in self.goals:
+                        if (newBoxPos[0]+movX, newBoxPos[1]+movY) in newBoxes or (newBoxPos[0]+movX*2, newBoxPos[1]+movY*2) in newBoxes:
+                            continue
+                        else:
+                            currBoxPos = (currBoxPos[0]+movX*2, currBoxPos[1]+movY*2)
+                            newBoxPos = (newBoxPos[0]+movX*2, newBoxPos[1]+movY*2)
+                            keys += keys[-1] + keys[-1]
+                            if self.isBoxed(newBoxPos, newBoxes):
+                                continue
+
                 newBoxes.append(newBoxPos)
 
                 if (frozenset(newBoxes), currBoxPos) in self.visitedNodes:
@@ -488,7 +533,11 @@ class SearchTree:
                 #print(currMap, "\n")
                 ################################################################################################
 
-                newnode = self.SearchNode((frozenset(newBoxes), currBoxPos), node, keys, self.goals)
+                if self.isSimple:
+                    newnode = BreathNode((frozenset(newBoxes), currBoxPos), node, keys, node.depth+1)
+                else:
+                    newnode = StarNode((frozenset(newBoxes), currBoxPos), node, keys, node.cost + addFactor, self.heuristic(newBoxes))
+                newnode.destination = newKeeperPos
                 #adicionar o novo Node à lista e sort ao mesmo tempo
                 insort_left(self.open_nodes, newnode)
 
