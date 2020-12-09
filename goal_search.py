@@ -220,7 +220,7 @@ class SearchTree:
             agentSearch = SearchAgent(self.isWall, node.parent.state[0], node.parent.state[1], node.destination)
             keys = await agentSearch.search()
             parentkeys = await self.get_keys(node.parent)
-            return parentkeys + keys + node.keys if keys!= None else parentkeys + node.keys
+            return parentkeys + keys + node.keys
     
     
     def heuristic(self, boxes):
@@ -483,7 +483,7 @@ class SearchTree:
             #    print("Number of attempts: ", count, "\n")
             #    return self.get_keys(node)
 
-            await asyncio.sleep(0) # this should be 0 in your code and this is REQUIRED
+            #await asyncio.sleep(0) # this should be 0 in your code and this is REQUIRED
 
             #encontrar os tiles para onde o agent pode ir
             agentSearch = SearchAgent(self.isWall, node.state[0], node.state[1], (0,0))

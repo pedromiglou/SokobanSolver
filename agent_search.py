@@ -39,6 +39,7 @@ class SearchAgent:
 		return abs(keeps_pos[0]-self.destination[0]) + abs(keeps_pos[1]-self.destination[1])
 
 	async def search(self):
+		await asyncio.sleep(0) # this should be 0 in your code and this is REQUIRED
 		while self.open_nodes != []:
 			node = self.open_nodes.pop(0)
 
@@ -46,8 +47,6 @@ class SearchAgent:
 				return self.get_keys(node)
 			
 			moves = [("d", 1, 0), ("a", -1, 0), ("s", 0, 1), ("w", 0, -1)]
-
-			#await asyncio.sleep(0) # this should be 0 in your code and this is REQUIRED
 
 			for key, movX, movY in moves:
 				new_keeper_pos = (node.state[0]+movX, node.state[1]+movY)
