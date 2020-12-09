@@ -46,7 +46,7 @@ class SearchTree:
         self.size = mapa.size
         self.goals = mapa.filter_tiles([Tiles.GOAL, Tiles.BOX_ON_GOAL, Tiles.MAN_ON_GOAL])
 
-        if self.size[0]*self.size[1]*len(self.goals) > 450:
+        if self.size[0]*self.size[1]*len(self.goals) > 500:
             self.isSimple = False
             self.root = StarNode((frozenset(mapa.boxes), mapa.keeper), None, "", 0, 1000000)
         else:
@@ -63,7 +63,7 @@ class SearchTree:
             self.isWall.append([])
             self.isBlocked.append([])
             for y in range(mapa.size[1]):
-                self.isWall[x].append(mapa.get_tile((x,y)) == Tiles.WALL)
+                self.isWall[x].append(mapa.get_tile((x,y)) == Tiles.WALL or x==0 or y==0 or x==self.size[0]-1 or y==self.size[1]-1)
                 self.isBlocked[x].append(self.isWall[x][y])
         
         self.isWalled_Outer()
@@ -419,8 +419,8 @@ class SearchTree:
     
     async def definePassages(self):
         self.passages = []
-        for x in range(1, self.size[0]-1):
-            for y in range(1, self.size[1]-1):
+        for x in range(2, self.size[0]-2):
+            for y in range(2, self.size[1]-2):
                 if (x, y) in self.goals or self.isWall[x][y]:
                     continue
                 if self.isWall[x+1][y] and self.isWall[x-1][y] and not self.isWall[x][y-1] and not self.isWall[x][y+1]: #vertical
@@ -437,23 +437,15 @@ class SearchTree:
         count = 0
         #lowerBound = await self.computeLowerBound(self.mapa)
         await self.definePassages()
-        print(self.passages)
 
-        #count2 = 0
-        tt = 0
         while self.open_nodes != []:
             node = self.open_nodes.pop(0)
-            #print(str(node.state) + "\n--------------------\n")
             count+=1
-            #print(count)
 
             #se cheguei a solucao
             if all([coord in self.goals for coord in node.state[0]]):
-                #print(node.state)
                 print("Number of attempts: ", count, "\n")
                 print("Time: ", time.time()-self.timer, "\n")
-                #print(count2)
-                print(tt)
                 keys = await self.get_keys(node)
                 print(keys)
                 return keys
