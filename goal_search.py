@@ -6,6 +6,7 @@ from bisect import insort_left
 from array import *
 import time
 
+"""
 # No de uma arvore de pesquisa usando breath
 class BreathNode:
     def __init__(self, state, parent, keys, depth):
@@ -20,6 +21,7 @@ class BreathNode:
     #funcao para fazer sort sem usar sempre key
     def __lt__(self, other):
         return self.depth < other.depth
+"""
 
 # No de uma arvore de pesquisa usando A*
 class StarNode:
@@ -46,12 +48,12 @@ class SearchTree:
         self.size = mapa.size
         self.goals = mapa.filter_tiles([Tiles.GOAL, Tiles.BOX_ON_GOAL, Tiles.MAN_ON_GOAL])
 
-        if self.size[0]*self.size[1]*len(self.goals) > 500:
+        if self.size[0]*self.size[1]*len(self.goals) >= 550:
             self.isSimple = False
             self.root = StarNode((frozenset(mapa.boxes), mapa.keeper), None, "", 0, 1000000)
         else:
             self.isSimple = True
-            self.root = BreathNode((frozenset(mapa.boxes), mapa.keeper), None, "", 0)
+            self.root = StarNode((frozenset(mapa.boxes), mapa.keeper), None, "", 0, 0)
 
         self.open_nodes = [self.root]
         self.visitedNodes = set()
@@ -72,6 +74,8 @@ class SearchTree:
         for x in range(1, mapa.size[0]-1):
             for y in range(1, mapa.size[1]-1):
                 self.isBlocked[x][y] = True if self.isBlocked[x][y] else self.isCornered((x,y))
+        
+        self.agentSearch = SearchAgent(self.isWall)
 
     #block positions next to outer wall with no goals
     def isWalled_Outer(self):
@@ -217,12 +221,10 @@ class SearchTree:
         if node.parent == None:
             return ""
         else:
-            agentSearch = SearchAgent(self.isWall, node.parent.state[0], node.parent.state[1], node.destination)
-            keys = await agentSearch.search()
+            keys = await self.agentSearch.search(node.parent.state[0], node.parent.state[1], node.destination)
             parentkeys = await self.get_keys(node.parent)
             return parentkeys + keys + node.keys
-    
-    
+
     def heuristic(self, boxes):
         goals = [goal for goal in self.goals if goal not in boxes]
         boxes = [box for box in boxes if box not in self.goals]
@@ -232,69 +234,6 @@ class SearchTree:
             h += min([abs(boxes[i][0]-goals[j][0]) + abs(boxes[i][1]-goals[j][1]) for j in range(len(goals))])
         
         return h
-    
-    
-    """
-    # calculo da heuristica
-    def heuristic(self, boxes):
-        goals = [goal for goal in self.goals if goal not in boxes]
-        boxes = [box for box in boxes if box not in self.goals]
-        size = len(goals)
-
-        if size == 0:
-            return 0
-        
-        if size == 1:
-            return abs(boxes[0][0]-goals[0][0]) + abs(boxes[0][1]-goals[0][1])
-
-        l = []
-        for i in range(size):
-            l.append([])
-            for j in range(size):
-                l[i].append(abs(boxes[i][0]-goals[j][0]) + abs(boxes[i][1]-goals[j][1]))
-
-        bestcost=[10000000]
-        cost = min([(l[0][i], i) for i in range(size)])
-        self.auxBruteForce(l, [cost[1]], 1, size, cost[0], bestcost)
-        return bestcost[0]
-    
-    def auxBruteForce(self, l, selected, row, size, cost, bestcost):
-        for i in range(size):
-            if i not in selected:
-                if row != size-1:
-                    if cost + l[row][i] >= bestcost[0]:
-                        return
-                    self.auxBruteForce(l, selected + [i], row+1, size, cost+l[row][i], bestcost)
-                else:
-                    if bestcost[0] > cost + l[row][i]:
-                        bestcost[0] = cost + l[row][i]
-    """
-
-    '''
-    async def computeLowerBound(self, mapa):
-        keeperPos = mapa.keeper
-        mapa.clear_tile(keeperPos)
-        boxes = mapa.filter_tiles([Tiles.BOX, Tiles.BOX_ON_GOAL])
-        goals = mapa.filter_tiles([Tiles.GOAL, Tiles.BOX_ON_GOAL, Tiles.MAN_ON_GOAL])
-        results = []
-        
-        n = 0
-        for box in boxes:
-            auxMapa = deepcopy(mapa)
-
-            for x in [b for b in boxes if b != box]:
-                auxMapa.clear_tile(x)
-            aux = []
-            for goal in goals:
-                auxSearch = SearchAgent(auxMapa, (), box, goal)
-                path = await auxSearch.search()
-                aux.append(len(path))
-                #results.insert(n, results[n] + [len(path)])
-            n+=1
-            results.append(aux)
-        
-        return sum([min(a) for a in results])
-    '''
         
     def isBoxed(self, newBoxPos, allBoxPos):
         x = newBoxPos[0]
@@ -453,12 +392,10 @@ class SearchTree:
                 if (x, y) in self.goals or self.isWall[x][y]:
                     continue
                 if self.isWall[x+1][y] and self.isWall[x-1][y] and not self.isWall[x][y-1] and not self.isWall[x][y+1]: #vertical
-                    a = SearchAgent(self.isWall, [(x,y)], (x,y-1), (x, y+1))
-                    if await a.search() == None:
+                    if await self.agentSearch.search([(x,y)], (x,y-1), (x, y+1)) == None:
                         self.passages.append((x,y))
                 elif not self.isWall[x+1][y] and not self.isWall[x-1][y] and self.isWall[x][y-1] and self.isWall[x][y+1]: #horizontal
-                    a = SearchAgent(self.isWall, [(x,y)], (x-1,y), (x+1, y))
-                    if await a.search() == None:
+                    if await self.agentSearch.search([(x,y)], (x-1,y), (x+1, y)) == None:
                         self.passages.append((x,y))
 
     # procurar a solucao
@@ -486,9 +423,8 @@ class SearchTree:
             #await asyncio.sleep(0) # this should be 0 in your code and this is REQUIRED
 
             #encontrar os tiles para onde o agent pode ir
-            agentSearch = SearchAgent(self.isWall, node.state[0], node.state[1], (0,0))
-            await agentSearch.search()
-            possibleTiles = agentSearch.visitedNodes
+            await self.agentSearch.search(node.state[0], node.state[1], (0,0))
+            possibleTiles = self.agentSearch.visitedNodes
 
             #como nao cheguei tenho de obter uma lista de possiveis movimentos das caixas
             options = []
@@ -518,7 +454,7 @@ class SearchTree:
                 if newKeeperPos not in possibleTiles:
                     continue
                 
-                addFactor = (abs(node.state[1][0]-newKeeperPos[0]) + abs(node.state[1][1]-newKeeperPos[1]))/20
+                addFactor = abs(node.state[1][0]-newKeeperPos[0]) + abs(node.state[1][1]-newKeeperPos[1])
 
                 currBoxPos, newBoxPos, keys = self.tunnel(currBoxPos, newBoxPos, movX,movY,newBoxes,keys)
 
@@ -555,9 +491,9 @@ class SearchTree:
                 ################################################################################################
 
                 if self.isSimple:
-                    newnode = BreathNode((frozenset(newBoxes), currBoxPos), node, keys, node.depth+1)
+                    newnode = StarNode((frozenset(newBoxes), currBoxPos), node, keys, node.cost + len(keys) + addFactor/100, 0)
                 else:
-                    newnode = StarNode((frozenset(newBoxes), currBoxPos), node, keys, node.cost + addFactor, self.heuristic(newBoxes))
+                    newnode = StarNode((frozenset(newBoxes), currBoxPos), node, keys, node.cost + addFactor/20, self.heuristic(newBoxes))
                 newnode.destination = newKeeperPos
                 #adicionar o novo Node à lista e sort ao mesmo tempo
                 insort_left(self.open_nodes, newnode)
