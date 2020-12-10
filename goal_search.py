@@ -279,15 +279,21 @@ class SearchTree:
         return False
 
     def deadlock_detection(self, nearbyBoxes, newBoxes, viewedBoxes):
-        print(nearbyBoxes)
-        print(viewedBoxes)
-        print()
-        if nearbyBoxes == {}:
+        if not bool(nearbyBoxes):
             return True
-        if viewedBoxes == None:
-            viewedBoxes = set()
+
+        #print("NearbyBoxes: ", nearbyBoxes)
+        #print("NewBoxes: ", newBoxes)
+        #print("ViewedBoxes: ", viewedBoxes)
 
         x, y = nearbyBoxes.pop()
+        top = (x, y-1)
+        bot = (x, y+1)
+        left = (x-1,y)
+        right = (x+1,y)
+        #print("x = ", x)
+        #print("y = ", y)
+        #print()
 
         moves = set()
         moves.add((1,0))
@@ -296,13 +302,36 @@ class SearchTree:
         moves.add((0,-1))
 
         for box in newBoxes:
-            if box not in viewedBoxes and ( (x-box[0], y-box[1]) in moves ) or ( (x+box[0], y+box[1]) in moves ):
+            if box not in viewedBoxes and ( ( (x-box[0], y-box[1]) in moves ) or ( (x+box[0], y+box[1]) in moves ) ):
+                #print("Box nearby -> ", box)
                 nearbyBoxes.add(box)
-        
-        if (self.isWall[x][y+1] or (x, y+1) in viewedBoxes or self.isWall[x][y-1] or (x, y-1) in viewedBoxes) and (self.isWall[x+1][y] or (x+1, y) in viewedBoxes or self.isWall[x-1][y] or (x-1, y) in viewedBoxes):
-            viewedBoxes.add((x,y))
-            return True and deadlock_detection(nearbyBoxes[0], newBoxes, viewedBoxes)
+        #print(self.isWall[x][y+1], " or ", self.isWall[x][y-1])
+        #print(self.isWall[x+1][y], " or ", self.isWall[x-1][y])
+        #print()
+        #if  ( (x, y+1) not in nearbyBoxes and (self.isWall[x][y+1] or (x, y+1) in viewedBoxes) ) or (x, y+-1) not in nearbyBoxes and (self.isWall[x][y-1] or (x, y-1) in viewedBoxes):
+        #    return False
+        if not (bot in nearbyBoxes or top in nearbyBoxes or self.isWall[bot[0]][bot[1]] or bot in viewedBoxes or self.isWall[top[0]][top[1]] or top in viewedBoxes ):
+            if not ( self.isBlocked[bot[0]][bot[1]] and self.isBlocked[top[0]][top[1]] ):
+                #print("Check3")
+                return False
+            
+        if not (right in nearbyBoxes or left in nearbyBoxes or self.isWall[right[0]][right[1]] or right in viewedBoxes or self.isWall[left[0]][left[1]] or left in viewedBoxes ):
+            if not ( self.isBlocked[right[0]][right[1]] and self.isBlocked[left[0]][left[1]] ):
+                #print("Check4")
+                return False
+            
+        viewedBoxes.add((x,y))
+        return True and self.deadlock_detection(nearbyBoxes, newBoxes, viewedBoxes)
 
+        '''
+        if (self.isWall[x][y+1] or (x, y+1) in viewedBoxes or self.isWall[x][y-1] or (x, y-1) in viewedBoxes) and (self.isWall[x+1][y] or (x+1, y) in viewedBoxes or self.isWall[x-1][y] or (x-1, y) in viewedBoxes):
+            print("Blocked box detected! Adding to ViewedBoxes -> ", (x,y))
+            viewedBoxes.add((x,y))
+            #print(nearbyBoxes)
+            #print(viewedBoxes)
+            #print()
+            return True and self.deadlock_detection(nearbyBoxes, newBoxes, viewedBoxes)
+        '''
         return False
 
     """
@@ -470,8 +499,9 @@ class SearchTree:
 
                 newBoxes = [b for b in node.state[0] if b != currBoxPos]
 
-                #if self.isBoxed(newBoxPos, newBoxes):
-                #    continue
+                if len(self.goals) <= 4:
+                    if self.isBoxed(newBoxPos, newBoxes):
+                        continue
                 
                 auxCost = abs(node.state[1][0]-newKeeperPos[0]) + abs(node.state[1][1]-newKeeperPos[1])
 
@@ -497,25 +527,32 @@ class SearchTree:
 
                 ################################################################################################
                 ## CODE FOR TESTING PURPOSES
-                currMap = deepcopy(self.mapa)
+                #currMap = deepcopy(self.mapa)
                 # Clear map of all entities
-                for tile in self.mapa.filter_tiles([Tiles.BOX, Tiles.BOX_ON_GOAL, Tiles.MAN, Tiles.MAN_ON_GOAL]):
-                    currMap.clear_tile(tile)
+                #for tile in self.mapa.filter_tiles([Tiles.BOX, Tiles.BOX_ON_GOAL, Tiles.MAN, Tiles.MAN_ON_GOAL]):
+                #    currMap.clear_tile(tile)
                 # Set boxes
-                for b in newBoxes:
-                    currMap.set_tile(b, Tiles.BOX)
+                #for b in newBoxes:
+                #    currMap.set_tile(b, Tiles.BOX)
                 # Set keeper
-                currMap.set_tile(currBoxPos, Tiles.MAN)
+                #currMap.set_tile(currBoxPos, Tiles.MAN)
                 #print(currMap, "\n")
+                #print(currMap)
                 ################################################################################################
 
-                if newBoxPos not in self.goals:
+                if len(self.goals) > 4:
                     s = set()
                     s.add(newBoxPos)
-                    if self.deadlock_detection(s, newBoxes, None):
-                        print(currMap)
-                        continue
-                
+                    viewedBoxes = set()
+                    x = self.deadlock_detection(s, newBoxes, viewedBoxes)
+                    flag = True
+                    if x:
+                        for b in viewedBoxes:
+                            if b in self.goals:
+                                flag = False
+                        if flag:
+                            continue
+
                 if self.isSimple:
                     cost = len(keys) + auxCost/100 # baseado na fórmula do score
                     newnode = StarNode((frozenset(newBoxes), currBoxPos), node, keys, node.cost + cost, 0)
