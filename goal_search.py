@@ -278,6 +278,33 @@ class SearchTree:
         
         return False
 
+    def deadlock_detection(self, nearbyBoxes, newBoxes, viewedBoxes):
+        print(nearbyBoxes)
+        print(viewedBoxes)
+        print()
+        if nearbyBoxes == {}:
+            return True
+        if viewedBoxes == None:
+            viewedBoxes = set()
+
+        x, y = nearbyBoxes.pop()
+
+        moves = set()
+        moves.add((1,0))
+        moves.add((-1,0))
+        moves.add((0,1))
+        moves.add((0,-1))
+
+        for box in newBoxes:
+            if box not in viewedBoxes and ( (x-box[0], y-box[1]) in moves ) or ( (x+box[0], y+box[1]) in moves ):
+                nearbyBoxes.add(box)
+        
+        if (self.isWall[x][y+1] or (x, y+1) in viewedBoxes or self.isWall[x][y-1] or (x, y-1) in viewedBoxes) and (self.isWall[x+1][y] or (x+1, y) in viewedBoxes or self.isWall[x-1][y] or (x-1, y) in viewedBoxes):
+            viewedBoxes.add((x,y))
+            return True and deadlock_detection(nearbyBoxes[0], newBoxes, viewedBoxes)
+
+        return False
+
     """
     def deadlock(self, boxPos, newBoxes):
         if boxPos in self.goals or (boxPos[0], boxPos[1]+1) in self.goals:
@@ -443,8 +470,8 @@ class SearchTree:
 
                 newBoxes = [b for b in node.state[0] if b != currBoxPos]
 
-                if self.isBoxed(newBoxPos, newBoxes):
-                    continue
+                #if self.isBoxed(newBoxPos, newBoxes):
+                #    continue
                 
                 auxCost = abs(node.state[1][0]-newKeeperPos[0]) + abs(node.state[1][1]-newKeeperPos[1])
 
@@ -470,18 +497,25 @@ class SearchTree:
 
                 ################################################################################################
                 ## CODE FOR TESTING PURPOSES
-                #currMap = deepcopy(self.mapa)
+                currMap = deepcopy(self.mapa)
                 # Clear map of all entities
-                #for tile in self.mapa.filter_tiles([Tiles.BOX, Tiles.BOX_ON_GOAL, Tiles.MAN, Tiles.MAN_ON_GOAL]):
-                #    currMap.clear_tile(tile)
+                for tile in self.mapa.filter_tiles([Tiles.BOX, Tiles.BOX_ON_GOAL, Tiles.MAN, Tiles.MAN_ON_GOAL]):
+                    currMap.clear_tile(tile)
                 # Set boxes
-                #for b in newBoxes:
-                #    currMap.set_tile(b, Tiles.BOX)
+                for b in newBoxes:
+                    currMap.set_tile(b, Tiles.BOX)
                 # Set keeper
-                #currMap.set_tile(currBoxPos, Tiles.MAN)
+                currMap.set_tile(currBoxPos, Tiles.MAN)
                 #print(currMap, "\n")
                 ################################################################################################
 
+                if newBoxPos not in self.goals:
+                    s = set()
+                    s.add(newBoxPos)
+                    if self.deadlock_detection(s, newBoxes, None):
+                        print(currMap)
+                        continue
+                
                 if self.isSimple:
                     cost = len(keys) + auxCost/100 # baseado na fórmula do score
                     newnode = StarNode((frozenset(newBoxes), currBoxPos), node, keys, node.cost + cost, 0)
