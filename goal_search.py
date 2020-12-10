@@ -48,7 +48,7 @@ class SearchTree:
         self.size = mapa.size
         self.goals = mapa.filter_tiles([Tiles.GOAL, Tiles.BOX_ON_GOAL, Tiles.MAN_ON_GOAL])
 
-        if self.size[0]*self.size[1]*len(self.goals) >= 550:
+        if self.size[0]*self.size[1]*len(self.goals) >= 600:
             self.isSimple = False
             self.root = StarNode((frozenset(mapa.boxes), mapa.keeper), None, "", 0, 1000000)
         else:
@@ -236,8 +236,7 @@ class SearchTree:
         return h
         
     def isBoxed(self, newBoxPos, allBoxPos):
-        x = newBoxPos[0]
-        y = newBoxPos[1]
+        x, y = newBoxPos
         if newBoxPos in self.goals:
             return False
 
@@ -416,15 +415,8 @@ class SearchTree:
                 print(keys)
                 return keys
 
-            #if node.state.completed:
-            #    print("Number of attempts: ", count, "\n")
-            #    return self.get_keys(node)
-
-            #await asyncio.sleep(0) # this should be 0 in your code and this is REQUIRED
-
             #encontrar os tiles para onde o agent pode ir
-            await self.agentSearch.search(node.state[0], node.state[1], (0,0))
-            possibleTiles = self.agentSearch.visitedNodes
+            possibleTiles = await self.agentSearch.getMoves(node.state[0], node.state[1])
 
             #como nao cheguei tenho de obter uma lista de possiveis movimentos das caixas
             options = []
@@ -438,23 +430,23 @@ class SearchTree:
                 newBoxPos = (currBoxPos[0]+movX, currBoxPos[1]+movY)
                 newKeeperPos = (currBoxPos[0]-movX, currBoxPos[1]-movY)
 
-                #verificar se esta a ir contra uma parede ou caixa e verificar se o lugar do keeper esta vazio
-                if self.isWall[newKeeperPos[0]][newKeeperPos[1]] or self.isBlocked[newBoxPos[0]][newBoxPos[1]]:
+                #verificar se ha um caminho para o keeper
+                if newKeeperPos not in possibleTiles:
                     continue
 
                 if newBoxPos in node.state[0] or newKeeperPos in node.state[0]:
+                    continue
+
+                #verificar se esta a ir contra uma parede ou caixa e verificar se o lugar do keeper esta vazio
+                if self.isWall[newKeeperPos[0]][newKeeperPos[1]] or self.isBlocked[newBoxPos[0]][newBoxPos[1]]:
                     continue
 
                 newBoxes = [b for b in node.state[0] if b != currBoxPos]
 
                 if self.isBoxed(newBoxPos, newBoxes):
                     continue
-
-                #verificar se ha um caminho para o keeper
-                if newKeeperPos not in possibleTiles:
-                    continue
                 
-                addFactor = abs(node.state[1][0]-newKeeperPos[0]) + abs(node.state[1][1]-newKeeperPos[1])
+                auxCost = abs(node.state[1][0]-newKeeperPos[0]) + abs(node.state[1][1]-newKeeperPos[1])
 
                 currBoxPos, newBoxPos, keys = self.tunnel(currBoxPos, newBoxPos, movX,movY,newBoxes,keys)
 
@@ -491,9 +483,10 @@ class SearchTree:
                 ################################################################################################
 
                 if self.isSimple:
-                    newnode = StarNode((frozenset(newBoxes), currBoxPos), node, keys, node.cost + len(keys) + addFactor/100, 0)
+                    cost = len(keys) + auxCost/100 # baseado na fórmula do score
+                    newnode = StarNode((frozenset(newBoxes), currBoxPos), node, keys, node.cost + cost, 0)
                 else:
-                    newnode = StarNode((frozenset(newBoxes), currBoxPos), node, keys, node.cost + addFactor/20, self.heuristic(newBoxes))
+                    newnode = StarNode((frozenset(newBoxes), currBoxPos), node, keys, 0, self.heuristic(newBoxes))
                 newnode.destination = newKeeperPos
                 #adicionar o novo Node à lista e sort ao mesmo tempo
                 insort_left(self.open_nodes, newnode)
