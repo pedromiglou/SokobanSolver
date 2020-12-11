@@ -389,6 +389,27 @@ class SearchTree:
         return False
     """
 
+    def isCornered2(self, newBoxPos, allBoxPos):
+        x, y = newBoxPos
+        if min([abs(x-i)+abs(y-j) for i, j in allBoxPos]) <=2:
+            return False
+
+        if (x+1, y+1) in allBoxPos:
+            if self.isWall[x+2][y+1] and self.isWall[x+2][y] and self.isWall[x][y-1] and self.isWall[x+1][y-1]:
+                return True
+            
+            if self.isWall[x-1][y] and self.isWall[x-1][y+1] and self.isWall[x][y+2] and self.isWall[x+1][y+2]:
+                return True
+        
+        if (x-1, y+1) in allBoxPos:
+            if self.isWall[x+1][y] and self.isWall[x+1][y+1] and self.isWall[x][y+2] and self.isWall[x-1][y+2]:
+                return True
+            
+            if self.isWall[x-2][y+1] and self.isWall[x-2][y] and self.isWall[x-1][y-1] and self.isWall[x][y-1]:
+                return True
+        
+        return False
+
     def tunnel(self, currBoxPos, newBoxPos, movX, movY, newBoxes, keys):
         if movX == 0: #andou em y    0 + 1 -> direita ; 0 - 1 -> esquerda
             if not (0 < newBoxPos[1]+2*movY < self.size[1]):
@@ -452,12 +473,80 @@ class SearchTree:
                 elif not self.isWall[x+1][y] and not self.isWall[x-1][y] and self.isWall[x][y-1] and self.isWall[x][y+1]: #horizontal
                     if await self.agentSearch.search([(x,y)], (x-1,y), (x+1, y)) == None:
                         self.passages.append((x,y))
+    
+    async def expandMap(self):
+        node = self.open_nodes[0]
+        possibleTiles = await self.agentSearch.getMoves(node.state[0], node.state[1])
+        initialSize = len(possibleTiles)
+
+        options = []
+        for box in node.state[0]:
+            options.append((box, "d", 1, 0))
+            options.append((box, "a", -1, 0))
+            options.append((box, "s", 0, 1))
+            options.append((box, "w", 0, -1))
+        
+        for currBoxPos, keys, movX, movY in options:
+            newBoxPos = (currBoxPos[0]+movX, currBoxPos[1]+movY)
+            newKeeperPos = (currBoxPos[0]-movX, currBoxPos[1]-movY)
+
+            #verificar se ha um caminho para o keeper
+            if newKeeperPos not in possibleTiles:
+                continue
+
+            if newBoxPos in node.state[0] or newKeeperPos in node.state[0]:
+                continue
+
+            #verificar se esta a ir contra uma parede ou caixa e verificar se o lugar do keeper esta vazio
+            if self.isWall[newKeeperPos[0]][newKeeperPos[1]] or self.isBlocked[newBoxPos[0]][newBoxPos[1]]:
+                continue
+
+            newBoxes = [b for b in node.state[0] if b != currBoxPos]
+
+            #if len(self.goals) <= 4:
+            if self.isBoxed(newBoxPos, newBoxes):
+                continue
+
+            if newBoxPos in self.passages:
+                if (newBoxPos[0]+movX, newBoxPos[1]+movY) not in self.goals and (newBoxPos[0]+movX*2, newBoxPos[1]+movY*2) not in self.goals:
+                    if (newBoxPos[0]+movX, newBoxPos[1]+movY) in newBoxes or (newBoxPos[0]+movX*2, newBoxPos[1]+movY*2) in newBoxes:
+                        continue
+
+            newBoxes.append(newBoxPos)
+
+            if len(self.goals) > 4:
+                s = set()
+                s.add(newBoxPos)
+                viewedBoxes = set()
+                x = self.deadlock_detection(s, newBoxes, viewedBoxes)
+                flag = False
+                if x:
+                    for b in viewedBoxes:
+                        if b not in self.goals:
+                            flag = True
+                            break
+                    if flag:
+                        continue
+            
+            newPossibleTiles = await self.agentSearch.getMoves(newBoxes, currBoxPos)
+            finalSize = len(newPossibleTiles)
+
+            if finalSize > initialSize + 2:
+                newnode = StarNode((frozenset(newBoxes), currBoxPos), node, keys, 0, self.heuristic(newBoxes))
+                self.open_nodes = [newnode]
+                self.visitedNodes = set()
+                self.visitedNodes.add(newnode.state)
+                self.open_nodes.append(self.root) #security against unpredicted deadlock
+                newnode.destination = newKeeperPos
+                return
 
     # procurar a solucao
     async def search(self, limit=None):
         count = 0
-        #lowerBound = await self.computeLowerBound(self.mapa)
+
         await self.definePassages()
+
+        await self.expandMap()
 
         while self.open_nodes != []:
             node = self.open_nodes.pop(0)
@@ -503,6 +592,11 @@ class SearchTree:
                     if self.isBoxed(newBoxPos, newBoxes):
                         continue
                 
+                """
+                if self.isCornered2(newBoxPos, newBoxes):
+                    continue
+                """
+                
                 auxCost = abs(node.state[1][0]-newKeeperPos[0]) + abs(node.state[1][1]-newKeeperPos[1])
 
                 currBoxPos, newBoxPos, keys = self.tunnel(currBoxPos, newBoxPos, movX,movY,newBoxes,keys)
@@ -545,16 +639,17 @@ class SearchTree:
                     s.add(newBoxPos)
                     viewedBoxes = set()
                     x = self.deadlock_detection(s, newBoxes, viewedBoxes)
-                    flag = True
+                    flag = False
                     if x:
                         for b in viewedBoxes:
-                            if b in self.goals:
-                                flag = False
+                            if b not in self.goals:
+                                flag = True
+                                break
                         if flag:
                             continue
 
+                cost = len(keys) + auxCost/100 # baseado na fórmula do score
                 if self.isSimple:
-                    cost = len(keys) + auxCost/100 # baseado na fórmula do score
                     newnode = StarNode((frozenset(newBoxes), currBoxPos), node, keys, node.cost + cost, 0)
                 else:
                     newnode = StarNode((frozenset(newBoxes), currBoxPos), node, keys, 0, self.heuristic(newBoxes))
