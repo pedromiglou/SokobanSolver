@@ -10,7 +10,6 @@ from consts import Tiles
 import asyncio
 from agent_search import SearchAgent
 from bisect import insort_left
-import time
 
 # search tree node using A*
 class BoxNode:
@@ -33,8 +32,6 @@ class SearchTree:
 
     #constructor
     def __init__(self, mapa):
-        self.timer = time.time()
-        self.mapa = mapa
         self.size = mapa.size
         self.goals = mapa.filter_tiles([Tiles.GOAL, Tiles.BOX_ON_GOAL, Tiles.MAN_ON_GOAL])
 
@@ -107,7 +104,7 @@ class SearchTree:
     
     #block positions next to inner walls with no goals that result in deadlock
     def isWalled_Inner(self):
-        dim = self.mapa.size
+        dim = self.size
 
         for x in range(1, dim[0]-1):
             for y in range(1, dim[1]-1):
@@ -496,8 +493,6 @@ class SearchTree:
 
     #main function -> search for the solution
     async def search(self, limit=None):
-        count = 0
-
         await self.definePassages()
 
         if not self.isSimple:
@@ -510,14 +505,10 @@ class SearchTree:
 
         while self.open_nodes != []:
             node = self.open_nodes.pop(0)
-            count+=1
 
             #if we reached the solution of the level
             if all([coord in self.goals for coord in node.state[0]]):
-                print("Number of attempts: ", count, "\n")
-                print("Time: ", time.time()-self.timer, "\n")
                 keys = await self.get_keys(node)
-                print(keys)
                 return keys
 
             #find the tiles that the keeper can reach
@@ -583,32 +574,18 @@ class SearchTree:
 
                 newBoxes.append(newBoxPos)
 
+                newstate = (frozenset(newBoxes), currBoxPos)
                 #verify if we are in a new state
-                if (frozenset(newBoxes), currBoxPos) in self.visitedNodes:
+                if newstate in self.visitedNodes:
                     continue
                 else:
-                    self.visitedNodes.add((frozenset(newBoxes), currBoxPos))
+                    self.visitedNodes.add(newstate)
 
-                ################################################################################################
-                ## CODE FOR TESTING PURPOSES
-                #currMap = deepcopy(self.mapa)
-                # Clear map of all entities
-                #for tile in self.mapa.filter_tiles([Tiles.BOX, Tiles.BOX_ON_GOAL, Tiles.MAN, Tiles.MAN_ON_GOAL]):
-                #    currMap.clear_tile(tile)
-                # Set boxes
-                #for b in newBoxes:
-                #    currMap.set_tile(b, Tiles.BOX)
-                # Set keeper
-                #currMap.set_tile(currBoxPos, Tiles.MAN)
-                #print(currMap, "\n")
-                #print(currMap)
-                ################################################################################################
-
-                cost = len(keys) + auxCost/100 #given the way the score is calculated
                 if self.isSimple: #if we are in a simple level -> uniform search
-                    newnode = BoxNode((frozenset(newBoxes), currBoxPos), node, keys, node.cost + cost, 0)
+                    cost = len(keys) + auxCost/100 #given the way the score is calculated
+                    newnode = BoxNode(newstate, node, keys, node.cost + cost, 0)
                 else: #if we are in a harder level -> greedy search
-                    newnode = BoxNode((frozenset(newBoxes), currBoxPos), node, keys, 0, self.heuristic(newBoxes))
+                    newnode = BoxNode(newstate, node, keys, 0, self.heuristic(newBoxes))
                 newnode.destination = newKeeperPos #save the tile the keeper will need to be to push the box
 
                 #add a node and sort

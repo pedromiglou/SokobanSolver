@@ -21,7 +21,6 @@ async def solver(puzzle, solution):
     while True:
         game_properties = await puzzle.get()
         mapa = Map(game_properties["map"])
-        print(mapa, "\n")
 
         searchTree = SearchTree(mapa)
         keys = await searchTree.search()
