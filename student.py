@@ -1,3 +1,10 @@
+########################
+### Group              #
+# Pedro Santos - 93221 #
+# Ricardo Cruz - 93118 #
+# Pedro Amaral - 93283 #
+########################
+
 import asyncio
 import getpass
 import json

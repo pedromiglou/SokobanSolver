@@ -1,3 +1,10 @@
+########################
+### Group              #
+# Pedro Santos - 93221 #
+# Ricardo Cruz - 93118 #
+# Pedro Amaral - 93283 #
+########################
+
 from copy import deepcopy, copy
 from consts import Tiles
 import asyncio
@@ -222,7 +229,8 @@ class SearchTree:
         
         return h
 
-    #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    #Verify whether a box is directly next a box making them both unable to
+    #move in any direction, making the make impossible to complete
     def isBoxed(self, newBoxPos, allBoxPos):
         x, y = newBoxPos
         if newBoxPos in self.goals:
@@ -266,117 +274,59 @@ class SearchTree:
         
         return False
 
-    #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    def deadlock_detection(self, nearbyBoxes, newBoxes, viewedBoxes):
-        if not bool(nearbyBoxes):
-            return True
+    #Detects more complex deadlock states dinamically, verifies according to the following checks:
+    #If the box has a box directly above or bellow, it can't move in y axis
+    #If the box's bellow and above tiles are deadlock positions, it can't move in y axis
+    #If the box has a box next to it potentially blocking its move, checks whether that box is in a deadlock position
+    #Repeats these steps for x axis, if both axis are blocked, the state is in deadlock
+    def deadlock_detection(self, box, boxesPos, viewedBoxes):
+        viewedBoxes.add(box)
 
-        #print("NearbyBoxes: ", nearbyBoxes)
-        #print("NewBoxes: ", newBoxes)
-        #print("ViewedBoxes: ", viewedBoxes)
-
-        x, y = nearbyBoxes.pop()
+        x, y = box
         top = (x, y-1)
         bot = (x, y+1)
         left = (x-1,y)
         right = (x+1,y)
-        #print("x = ", x)
-        #print("y = ", y)
-        #print()
 
-        moves = set()
-        moves.add((1,0))
-        moves.add((-1,0))
-        moves.add((0,1))
-        moves.add((0,-1))
+        xDeadlock = False
+        yDeadlock = False
 
-        for box in newBoxes:
-            if box not in viewedBoxes and ( ( (x-box[0], y-box[1]) in moves ) or ( (x+box[0], y+box[1]) in moves ) ):
-                #print("Box nearby -> ", box)
-                nearbyBoxes.add(box)
-        #print(self.isWall[x][y+1], " or ", self.isWall[x][y-1])
-        #print(self.isWall[x+1][y], " or ", self.isWall[x-1][y])
-        #print()
-        #if  ( (x, y+1) not in nearbyBoxes and (self.isWall[x][y+1] or (x, y+1) in viewedBoxes) ) or (x, y+-1) not in nearbyBoxes and (self.isWall[x][y-1] or (x, y-1) in viewedBoxes):
-        #    return False
-        if not (bot in nearbyBoxes or top in nearbyBoxes or self.isWall[bot[0]][bot[1]] or bot in viewedBoxes or self.isWall[top[0]][top[1]] or top in viewedBoxes ):
-            if not ( self.isBlocked[bot[0]][bot[1]] and self.isBlocked[top[0]][top[1]] ):
-                #print("Check3")
-                return False
-            
-        if not (right in nearbyBoxes or left in nearbyBoxes or self.isWall[right[0]][right[1]] or right in viewedBoxes or self.isWall[left[0]][left[1]] or left in viewedBoxes ):
-            if not ( self.isBlocked[right[0]][right[1]] and self.isBlocked[left[0]][left[1]] ):
-                #print("Check4")
-                return False
-            
-        viewedBoxes.add((x,y))
-        return True and self.deadlock_detection(nearbyBoxes, newBoxes, viewedBoxes)
-
-        '''
-        if (self.isWall[x][y+1] or (x, y+1) in viewedBoxes or self.isWall[x][y-1] or (x, y-1) in viewedBoxes) and (self.isWall[x+1][y] or (x+1, y) in viewedBoxes or self.isWall[x-1][y] or (x-1, y) in viewedBoxes):
-            print("Blocked box detected! Adding to ViewedBoxes -> ", (x,y))
-            viewedBoxes.add((x,y))
-            #print(nearbyBoxes)
-            #print(viewedBoxes)
-            #print()
-            return True and self.deadlock_detection(nearbyBoxes, newBoxes, viewedBoxes)
-        '''
-        return False
-
-    """
-    def deadlock(self, boxPos, newBoxes):
-        if boxPos in self.goals or (boxPos[0], boxPos[1]+1) in self.goals:
+        #If the box if blocked by a wall...
+        if self.isWall[bot[0]][bot[1]] or bot in viewedBoxes or self.isWall[top[0]][top[1]] or top in viewedBoxes:
+            yDeadlock = True
+        if not yDeadlock:
+            #If both positions next to it are blocked positions...
+            if self.isBlocked[bot[0]][bot[1]] and self.isBlocked[top[0]][top[1]]:
+                yDeadlock = True
+            if not yDeadlock:
+                #If there is a box directly below, checks if it is in deadlock
+                if bot in boxesPos:
+                    yDeadlock = self.deadlock_detection(bot, boxesPos, viewedBoxes)
+                if not yDeadlock:
+                #If there is a box directly above, checks if it is in deadlock
+                    if top in boxesPos:
+                        yDeadlock = self.deadlock_detection(top, boxesPos, viewedBoxes)
+        
+        #If it's not blocked along y axis, it can move so it's not a deadlock, so no need for further verifications
+        if not yDeadlock:
             return False
 
-        # DeadLock Pattern 1
-        if (boxPos[0]+1, boxPos[1]) in newBoxes:  # There is a box to the right
-            if (boxPos[0]+1, boxPos[1]+1) in self.goals:
-                return False
-            wall1 = (boxPos[0]-1, boxPos[1]+1)    # Wall x-1, y+1
-            wall2 = (boxPos[0], boxPos[1]+2)      # Wall x, y+2
-            wall3 = (boxPos[0]+1, boxPos[1]+2)    # Wall x+1, y+2
-            wall4 = (boxPos[0]+2, boxPos[1]+1)    # Wall x+2, y+1
-            if  not (wall1[0] > self.mapa.size[0]-1 or wall1[1] > self.mapa.size[1]-1 or wall2[0] > self.mapa.size[0]-1 or wall2[1] > self.mapa.size[1]-1 or wall3[0] > self.mapa.size[0]-1 or wall3[1] > self.mapa.size[1]-1 or wall4[0] > self.mapa.size[0]-1 or wall4[1] > self.mapa.size[1]-1):
-                if self.isWall[wall1[0]][wall1[1]] and self.isWall[wall2[0]][wall2[1]] and self.isWall[wall3[0]][wall3[1]] and self.isWall[wall4[0]][wall4[1]]:
-                    return True
-
-        if (boxPos[0]-1, boxPos[1]) in newBoxes:  # There is a box to the left
-            if (boxPos[0]-1, boxPos[1]+1) in self.goals:
-                return False
-            wall1 = (boxPos[0]+1, boxPos[1]+1)    # Wall x+1, y+1
-            wall2 = (boxPos[0], boxPos[1]+2)      # Wall x, y+2
-            wall3 = (boxPos[0]-1, boxPos[1]+2)    # Wall x-1, y+2
-            wall4 = (boxPos[0]-2, boxPos[1]+1)    # Wall x-2, y+1
-            if  not (wall1[0] > self.mapa.size[0]-1 or wall1[1] > self.mapa.size[1]-1 or wall2[0] > self.mapa.size[0]-1 or wall2[1] > self.mapa.size[1]-1 or wall3[0] > self.mapa.size[0]-1 or wall3[1] > self.mapa.size[1]-1 or wall4[0] > self.mapa.size[0]-1 or wall4[1] > self.mapa.size[1]-1):
-                if self.isWall[wall1[0]][wall1[1]] and self.isWall[wall2[0]][wall2[1]] and self.isWall[wall3[0]][wall3[1]] and self.isWall[wall4[0]][wall4[1]]:
-                    return True
-                    
-        # DeadLock Pattern 2
-        box_rightPos = self.isWall[boxPos[0]+1][boxPos[1]] or (boxPos[0]+1, boxPos[1]) in newBoxes
-        box_leftPos = self.isWall[boxPos[0]-1][boxPos[1]] or (boxPos[0]-1, boxPos[1]) in newBoxes
-
-        if box_rightPos:
-            box_upPos = self.isWall[boxPos[0]][boxPos[1]-1] or (boxPos[0], boxPos[1]-1) in newBoxes
-            box_downPos = self.isWall[boxPos[0]][boxPos[1]+1] or (boxPos[0], boxPos[1]+1) in newBoxes
-            box_upRightPos = self.isWall[boxPos[0]+1][boxPos[1]+1] or (boxPos[0]+1, boxPos[1]+1) in newBoxes
-            box_downRightPos = self.isWall[boxPos[0]+1][boxPos[1]-1] or (boxPos[0]+1, boxPos[1]-1) in newBoxes
-
-            if box_rightPos and box_upPos and box_upRightPos:
+        #If the box if blocked by a wall...
+        if self.isWall[right[0]][right[1]] or right in viewedBoxes or self.isWall[left[0]][left[1]] or left in viewedBoxes:
+            return True
+        #If both positions next to it are blocked positions...
+        if self.isBlocked[right[0]][right[1]] and self.isBlocked[left[0]][left[1]]:
+            return True
+        #If there is a box directly to the right, checks if it is in deadlock
+        if right in boxesPos:
+            if self.deadlock_detection(right, boxesPos, viewedBoxes):
                 return True
-            if box_rightPos and box_downPos and box_downRightPos:
-                return True        
-        if box_leftPos:
-            box_upPos = self.isWall[boxPos[0]][boxPos[1]-1] or (boxPos[0], boxPos[1]-1) in newBoxes
-            box_downPos = self.isWall[boxPos[0]][boxPos[1]+1] or (boxPos[0], boxPos[1]+1) in newBoxes
-            box_upLeftPos = self.isWall[boxPos[0]-1][boxPos[1]+1] or (boxPos[0]-1, boxPos[1]+1) in newBoxes
-            box_downLeftPos = self.isWall[boxPos[0]-1][boxPos[1]-1] or (boxPos[0]-1, boxPos[1]-1) in newBoxes
-
-            if box_leftPos and box_upPos and box_upLeftPos:
+        #If there is a box directly to the left, checks if it is in deadlock
+        if left in boxesPos:
+            if self.deadlock_detection(left, boxesPos, viewedBoxes):
                 return True
-            if box_leftPos and box_downPos and box_downLeftPos:
-                return True        
+        #If all four checks are false, it can move either left or right
         return False
-    """
 
     #verify if we have a tunnel in front of the keeper so that the keeper can make more pushes
     #also keeps pushing a box if it is next to a wall and fulfills certains conditions
@@ -507,24 +457,13 @@ class SearchTree:
 
             newBoxes = [b for b in node.state[0] if b != currBoxPos]
 
-            #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            if self.isBoxed(newBoxPos, newBoxes):
-                continue
-
-            #passage deadlock -> if it has a box in the tiles the box needs to be pushed into
-            if newBoxPos in self.passages:
-                if (newBoxPos[0]+movX, newBoxPos[1]+movY) not in self.goals and (newBoxPos[0]+movX*2, newBoxPos[1]+movY*2) not in self.goals:
-                    if (newBoxPos[0]+movX, newBoxPos[1]+movY) in newBoxes or (newBoxPos[0]+movX*2, newBoxPos[1]+movY*2) in newBoxes:
-                        continue
-
-            newBoxes.append(newBoxPos)
-
-            #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            #if the number of boxes is lower than 4, call function isBoxed, if not verify more advanced deadlocks
             if len(self.goals) > 4:
-                s = set()
-                s.add(newBoxPos)
+                if self.isBoxed(newBoxPos, newBoxes):
+                    continue
+            else:
                 viewedBoxes = set()
-                x = self.deadlock_detection(s, newBoxes, viewedBoxes)
+                x = self.deadlock_detection(newBoxPos, newBoxes, viewedBoxes)
                 flag = False
                 if x:
                     for b in viewedBoxes:
@@ -533,6 +472,14 @@ class SearchTree:
                             break
                     if flag:
                         continue
+
+            #passage deadlock -> if it has a box in the tiles the box needs to be pushed into
+            if newBoxPos in self.passages:
+                if (newBoxPos[0]+movX, newBoxPos[1]+movY) not in self.goals and (newBoxPos[0]+movX*2, newBoxPos[1]+movY*2) not in self.goals:
+                    if (newBoxPos[0]+movX, newBoxPos[1]+movY) in newBoxes or (newBoxPos[0]+movX*2, newBoxPos[1]+movY*2) in newBoxes:
+                        continue
+
+            newBoxes.append(newBoxPos)
             
             newPossibleTiles = await self.agentSearch.getMoves(newBoxes, currBoxPos)
             finalSize = len(newPossibleTiles) #eventual number of tiles that the keeper can reach
@@ -555,6 +502,11 @@ class SearchTree:
 
         if not self.isSimple:
             await self.expandMap()
+
+        if len(self.goals) > 4:
+            simpleDeadlocks = False
+        else:
+            simpleDeadlocks = True
 
         while self.open_nodes != []:
             node = self.open_nodes.pop(0)
@@ -596,9 +548,21 @@ class SearchTree:
 
                 newBoxes = [b for b in node.state[0] if b != currBoxPos]
 
-                #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                if self.isBoxed(newBoxPos, newBoxes):
-                    continue
+                #if the number of boxes is lower than 4, call function isBoxed, if not verify more advanced deadlocks
+                if simpleDeadlocks:
+                    if self.isBoxed(newBoxPos, newBoxes):
+                        continue
+                else:
+                    viewedBoxes = set()
+                    x = self.deadlock_detection(newBoxPos, newBoxes, viewedBoxes)
+                    flag = False
+                    if x:
+                        for b in viewedBoxes:
+                            if b not in self.goals:
+                                flag = True
+                                break
+                        if flag:
+                            continue
                 
                 #ideal number of tiles from the keeper to the the tile where he can push the box
                 auxCost = abs(node.state[1][0]-newKeeperPos[0]) + abs(node.state[1][1]-newKeeperPos[1])
@@ -639,21 +603,6 @@ class SearchTree:
                 #print(currMap, "\n")
                 #print(currMap)
                 ################################################################################################
-
-                #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                if len(self.goals) > 4:
-                    s = set()
-                    s.add(newBoxPos)
-                    viewedBoxes = set()
-                    x = self.deadlock_detection(s, newBoxes, viewedBoxes)
-                    flag = False
-                    if x:
-                        for b in viewedBoxes:
-                            if b not in self.goals:
-                                flag = True
-                                break
-                        if flag:
-                            continue
 
                 cost = len(keys) + auxCost/100 #given the way the score is calculated
                 if self.isSimple: #if we are in a simple level -> uniform search

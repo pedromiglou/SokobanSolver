@@ -7,6 +7,6 @@ steps:
   image: python:3.6
   commands:
   - pip install requests aiohttp async-timeout websockets yarl
-  - NAME=miglou SERVER=192.168.85.196 PORT=8000 python student.py 
+  - NAME=93118_93221_93283 SERVER=192.168.85.196 PORT=8000 python student.py 
 
 
