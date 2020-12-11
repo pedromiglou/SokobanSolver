@@ -3,28 +3,10 @@ from consts import Tiles
 import asyncio
 from agent_search import SearchAgent
 from bisect import insort_left
-from array import *
 import time
 
-"""
-# No de uma arvore de pesquisa usando breath
-class BreathNode:
-    def __init__(self, state, parent, keys, depth):
-        self.state = state
-        self.parent = parent
-        self.keys = keys
-        self.depth = depth
-
-    def __str__(self):
-        return "no(" + str(self.state) + "," + str(self.parent) + ")"
-
-    #funcao para fazer sort sem usar sempre key
-    def __lt__(self, other):
-        return self.depth < other.depth
-"""
-
-# No de uma arvore de pesquisa usando A*
-class StarNode:
+# search tree node using A*
+class BoxNode:
     def __init__(self, state, parent, keys, cost, heuristic):
         self.state = state
         self.parent = parent
@@ -35,32 +17,33 @@ class StarNode:
     def __str__(self):
         return "no(" + str(self.state) + "," + str(self.parent) + ")"
 
-    #funcao para fazer sort sem usar sempre key
+    #function used when these nodes are sorted
     def __lt__(self, other):
         return self.priority < other.priority
 
-# Arvore de pesquisa
+# search tree for the boxes
 class SearchTree:
-    # construtor
+
+    #constructor
     def __init__(self, mapa):
         self.timer = time.time()
         self.mapa = mapa
         self.size = mapa.size
         self.goals = mapa.filter_tiles([Tiles.GOAL, Tiles.BOX_ON_GOAL, Tiles.MAN_ON_GOAL])
 
-        if self.size[0]*self.size[1]*len(self.goals) >= 600:
+        if self.size[0]*self.size[1]*len(self.goals) >= 600: #will use greedy search
             self.isSimple = False
-            self.root = StarNode((frozenset(mapa.boxes), mapa.keeper), None, "", 0, 1000000)
-        else:
+            self.root = BoxNode((frozenset(mapa.boxes), mapa.keeper), None, "", 0, 1000000)
+        else: #will use uniform search
             self.isSimple = True
-            self.root = StarNode((frozenset(mapa.boxes), mapa.keeper), None, "", 0, 0)
+            self.root = BoxNode((frozenset(mapa.boxes), mapa.keeper), None, "", 0, 0)
 
         self.open_nodes = [self.root]
         self.visitedNodes = set()
         self.visitedNodes.add(self.root.state)
 
-        self.isWall = [] #True se for parede
-        self.isBlocked = [] #True se resultar em deadlock
+        self.isWall = [] #True if wall
+        self.isBlocked = [] #True if wall or tile results in deadlock
         for x in range(mapa.size[0]):
             self.isWall.append([])
             self.isBlocked.append([])
@@ -68,6 +51,7 @@ class SearchTree:
                 self.isWall[x].append(mapa.get_tile((x,y)) == Tiles.WALL or x==0 or y==0 or x==self.size[0]-1 or y==self.size[1]-1)
                 self.isBlocked[x].append(self.isWall[x][y])
         
+        #static deadlocks
         self.isWalled_Outer()
         self.isWalled_Inner()
         
@@ -75,6 +59,7 @@ class SearchTree:
             for y in range(1, mapa.size[1]-1):
                 self.isBlocked[x][y] = True if self.isBlocked[x][y] else self.isCornered((x,y))
         
+        #SearchAgent instance (walls are always the same)
         self.agentSearch = SearchAgent(self.isWall)
 
     #block positions next to outer wall with no goals
@@ -216,15 +201,17 @@ class SearchTree:
 
         return False
 
-    # obter o caminho (de teclas) da raiz ate um no
+    #get all keys from the root until this node
     async def get_keys(self,node):
         if node.parent == None:
             return ""
         else:
-            keys = await self.agentSearch.search(node.parent.state[0], node.parent.state[1], node.destination)
-            parentkeys = await self.get_keys(node.parent)
-            return parentkeys + keys + node.keys
+            keys = await self.agentSearch.search(node.parent.state[0], node.parent.state[1], node.destination) #keeper keys
+            parentkeys = await self.get_keys(node.parent) #parent keys
+            return parentkeys + keys + node.keys #all keys
 
+    #heuristic function
+    #for all boxes not on goal get minimum manhattan distance to the closest empty goal
     def heuristic(self, boxes):
         goals = [goal for goal in self.goals if goal not in boxes]
         boxes = [box for box in boxes if box not in self.goals]
@@ -234,7 +221,8 @@ class SearchTree:
             h += min([abs(boxes[i][0]-goals[j][0]) + abs(boxes[i][1]-goals[j][1]) for j in range(len(goals))])
         
         return h
-        
+
+    #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     def isBoxed(self, newBoxPos, allBoxPos):
         x, y = newBoxPos
         if newBoxPos in self.goals:
@@ -278,6 +266,7 @@ class SearchTree:
         
         return False
 
+    #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     def deadlock_detection(self, nearbyBoxes, newBoxes, viewedBoxes):
         if not bool(nearbyBoxes):
             return True
@@ -389,78 +378,90 @@ class SearchTree:
         return False
     """
 
-    def isCornered2(self, newBoxPos, allBoxPos):
-        x, y = newBoxPos
-        if min([abs(x-i)+abs(y-j) for i, j in allBoxPos]) <=2:
-            return False
-
-        if (x+1, y+1) in allBoxPos:
-            if self.isWall[x+2][y+1] and self.isWall[x+2][y] and self.isWall[x][y-1] and self.isWall[x+1][y-1]:
-                return True
-            
-            if self.isWall[x-1][y] and self.isWall[x-1][y+1] and self.isWall[x][y+2] and self.isWall[x+1][y+2]:
-                return True
-        
-        if (x-1, y+1) in allBoxPos:
-            if self.isWall[x+1][y] and self.isWall[x+1][y+1] and self.isWall[x][y+2] and self.isWall[x-1][y+2]:
-                return True
-            
-            if self.isWall[x-2][y+1] and self.isWall[x-2][y] and self.isWall[x-1][y-1] and self.isWall[x][y-1]:
-                return True
-        
-        return False
-
+    #verify if we have a tunnel in front of the keeper so that the keeper can make more pushes
+    #also keeps pushing a box if it is next to a wall and fulfills certains conditions
     def tunnel(self, currBoxPos, newBoxPos, movX, movY, newBoxes, keys):
-        if movX == 0: #andou em y    0 + 1 -> direita ; 0 - 1 -> esquerda
+        if movX == 0: #vertical tunnel
+            #if it is on the end of the map return
             if not (0 < newBoxPos[1]+2*movY < self.size[1]):
                 return currBoxPos, newBoxPos, keys
 
-            if newBoxPos not in self.goals: #se a nova posicao da caixa n esta nos objetivos
-                if self.isWall[newBoxPos[0]+1][newBoxPos[1]] or self.isWall[newBoxPos[0]-1][newBoxPos[1]]: #se tem uma parede á esquerda ou á direita
-                    if self.isWall[newBoxPos[0]+1][newBoxPos[1]+movY] and self.isWall[newBoxPos[0]-1][newBoxPos[1]+movY]: #se na posicao a seguir estiver rodeado de duas paredes
-                        if not self.isBlocked[newBoxPos[0]][newBoxPos[1]+movY] and (newBoxPos[0], newBoxPos[1]+movY) not in newBoxes:#se na posição seguinte não está uma caixa nem uma parede
+            #if box isnt in a goal tile
+            if newBoxPos not in self.goals:
+                #if the box has a wall to the left or to the right
+                if self.isWall[newBoxPos[0]+1][newBoxPos[1]] or self.isWall[newBoxPos[0]-1][newBoxPos[1]]:
+                    #if the box will have a wall to the left and to the right in the next tile
+                    if self.isWall[newBoxPos[0]+1][newBoxPos[1]+movY] and self.isWall[newBoxPos[0]-1][newBoxPos[1]+movY]:
+                        #if the next tile doesn't result in deadlock, isn't a wall and isn't a box 
+                        if not self.isBlocked[newBoxPos[0]][newBoxPos[1]+movY] and (newBoxPos[0], newBoxPos[1]+movY) not in newBoxes:
                             currBoxPos, newBoxPos, keys = self.tunnel(newBoxPos, (newBoxPos[0], newBoxPos[1]+movY), movX, movY, newBoxes, keys + keys[-1])
                     
-                    elif self.isWall[newBoxPos[0]+1][newBoxPos[1]+movY]: #se tem parede á direita e não tem parede á esquerda
-                        if not self.isBlocked[newBoxPos[0]][newBoxPos[1]+movY*2] and (newBoxPos[0], newBoxPos[1]+movY*2) not in newBoxes:#se na posição seguinte não está uma caixa nem uma parede
+                    #if the box will have a wall only to the right
+                    elif self.isWall[newBoxPos[0]+1][newBoxPos[1]+movY]:
+                        #if the next tile doesn't have a deadlock, wall or box tile next to it
+                        if not self.isBlocked[newBoxPos[0]][newBoxPos[1]+movY*2] and (newBoxPos[0], newBoxPos[1]+movY*2) not in newBoxes:
+                            #if the next tile doesn't have a wall or box tile diagonal to it
                             if not self.isWall[newBoxPos[0]-1][newBoxPos[1]+2*movY] and (newBoxPos[0]-1, newBoxPos[1]+movY*2) not in newBoxes:
+                                #if the next tile doesn't result in deadlock, isn't a wall and isn't a box
                                 if not self.isBlocked[newBoxPos[0]][newBoxPos[1]+movY] and (newBoxPos[0], newBoxPos[1]+movY) not in newBoxes:
+                                    #if the current tile doesn't have a box diagonal to it
                                     if (newBoxPos[0]-1, newBoxPos[1]+movY) not in newBoxes:
                                         currBoxPos, newBoxPos, keys = self.tunnel(newBoxPos, (newBoxPos[0], newBoxPos[1]+movY), movX, movY, newBoxes, keys + keys[-1])
 
-                    elif self.isWall[newBoxPos[0]-1][newBoxPos[1]+movY]: #se tem parede á esquerda e não tem parede á direita
+                    #if the box will have a wall only to the left
+                    elif self.isWall[newBoxPos[0]-1][newBoxPos[1]+movY]:
+                        #if the next tile doesn't have a deadlock, wall or box tile next to it
                         if not self.isBlocked[newBoxPos[0]][newBoxPos[1]+movY*2] and (newBoxPos[0], newBoxPos[1]+movY*2) not in newBoxes:
+                            #if the next tile doesn't have a wall or box tile diagonal to it
                             if not self.isWall[newBoxPos[0]+1][newBoxPos[1]+2*movY] and (newBoxPos[0]+1, newBoxPos[1]+movY*2) not in newBoxes:
+                                #if the next tile doesn't result in deadlock, isn't a wall and isn't a box
                                 if not self.isBlocked[newBoxPos[0]][newBoxPos[1]+movY] and (newBoxPos[0], newBoxPos[1]+movY) not in newBoxes:
+                                    #if the current tile doesn't have a box diagonal to it
                                     if (newBoxPos[0]+1, newBoxPos[1]+movY) not in newBoxes:
                                         currBoxPos, newBoxPos, keys = self.tunnel(newBoxPos, (newBoxPos[0], newBoxPos[1]+movY), movX, movY, newBoxes, keys + keys[-1])
-                    
-        else: #andou em x  1 + 1 -> baixo    1 - 1 -> cima
+
+        else: #horizontal tunnel
+            #if it is on the end of the map return
             if not (0 < newBoxPos[0]+2*movX < self.size[0]):
                 return currBoxPos, newBoxPos, keys
 
-            if newBoxPos not in self.goals: #se a nova posicao da caixa n esta nos objetivos
-                if self.isWall[newBoxPos[0]][newBoxPos[1]+1] or self.isWall[newBoxPos[0]][newBoxPos[1]-1]: #se tem uma parede em baixo ou em cima
-                    if self.isWall[newBoxPos[0]+movX][newBoxPos[1]+1] and self.isWall[newBoxPos[0]+movX][newBoxPos[1]-1]: #se na posicao a seguir estiver rodeado de duas paredes
-                        if not self.isBlocked[newBoxPos[0]+movX][newBoxPos[1]] and (newBoxPos[0] + movX, newBoxPos[1]) not in newBoxes:#se na posicao seguinte nao esta nem uma caixa nem uma parede
+            #if box isnt in a goal tile
+            if newBoxPos not in self.goals:
+                #if the box has a wall to the top or to the bottom
+                if self.isWall[newBoxPos[0]][newBoxPos[1]+1] or self.isWall[newBoxPos[0]][newBoxPos[1]-1]:
+                    #if the box will have a wall to the top and to the bottow in the next tile
+                    if self.isWall[newBoxPos[0]+movX][newBoxPos[1]+1] and self.isWall[newBoxPos[0]+movX][newBoxPos[1]-1]:
+                        #if the next tile doesn't result in deadlock, isn't a wall and isn't a box 
+                        if not self.isBlocked[newBoxPos[0]+movX][newBoxPos[1]] and (newBoxPos[0] + movX, newBoxPos[1]) not in newBoxes:
                             currBoxPos, newBoxPos, keys = self.tunnel(newBoxPos, (newBoxPos[0]+movX, newBoxPos[1]), movX, movY, newBoxes, keys + keys[-1])
                     
-                    elif self.isWall[newBoxPos[0]+movX][newBoxPos[1]+1]: #se na posicao seguinte tem parede em baixo mas nao tem em cima
+                    #if the box will have a wall only to the bottom
+                    elif self.isWall[newBoxPos[0]+movX][newBoxPos[1]+1]:
+                        #if the next tile doesn't have a deadlock, wall or box tile next to it
                         if not self.isBlocked[newBoxPos[0]+movX*2][newBoxPos[1]] and (newBoxPos[0] + movX*2, newBoxPos[1]) not in newBoxes:
+                            #if the next tile doesn't have a wall or box tile diagonal to it
                             if not self.isWall[newBoxPos[0]+2*movX][newBoxPos[1]-1] and (newBoxPos[0] + movX*2, newBoxPos[1]-1) not in newBoxes:
+                                #if the next tile doesn't result in deadlock, isn't a wall and isn't a box
                                 if not self.isBlocked[newBoxPos[0]+movX][newBoxPos[1]] and (newBoxPos[0] + movX, newBoxPos[1]) not in newBoxes:
+                                    #if the current tile doesn't have a box diagonal to it
                                     if (newBoxPos[0] + movX, newBoxPos[1]-1) not in newBoxes:
                                         currBoxPos, newBoxPos, keys = self.tunnel(newBoxPos, (newBoxPos[0]+movX, newBoxPos[1]), movX, movY, newBoxes, keys + keys[-1])
 
-                    elif self.isWall[newBoxPos[0]+movX][newBoxPos[1]-1]: #se na posicao seguinte tem parede em baixo mas nao tem em cima
+                    #if the box will have a wall only to the top
+                    elif self.isWall[newBoxPos[0]+movX][newBoxPos[1]-1]:
+                        #if the next tile doesn't have a deadlock, wall or box tile next to it
                         if not self.isBlocked[newBoxPos[0]+movX*2][newBoxPos[1]] and (newBoxPos[0] + movX*2, newBoxPos[1]) not in newBoxes:
+                            #if the next tile doesn't have a wall or box tile diagonal to it
                             if not self.isWall[newBoxPos[0]+2*movX][newBoxPos[1]+1] and (newBoxPos[0] + movX*2, newBoxPos[1]+1) not in newBoxes:
+                                #if the next tile doesn't result in deadlock, isn't a wall and isn't a box
                                 if not self.isBlocked[newBoxPos[0]+movX][newBoxPos[1]] and (newBoxPos[0] + movX, newBoxPos[1]) not in newBoxes:
+                                    #if the current tile doesn't have a box diagonal to it
                                     if (newBoxPos[0] + movX, newBoxPos[1]+1) not in newBoxes:
                                         currBoxPos, newBoxPos, keys = self.tunnel(newBoxPos, (newBoxPos[0]+movX, newBoxPos[1]), movX, movY, newBoxes, keys + keys[-1])
                     
         return currBoxPos, newBoxPos, keys
     
+    #get a list of tiles that connect different areas of the map, if this tile has a box the keeper can't reach the other area
     async def definePassages(self):
         self.passages = []
         for x in range(2, self.size[0]-2):
@@ -474,10 +475,12 @@ class SearchTree:
                     if await self.agentSearch.search([(x,y)], (x-1,y), (x+1, y)) == None:
                         self.passages.append((x,y))
     
+    #try to get a first move that will significantly increase the area the keeper can reach
     async def expandMap(self):
         node = self.open_nodes[0]
+        #find the tiles that the keeper can reach
         possibleTiles = await self.agentSearch.getMoves(node.state[0], node.state[1])
-        initialSize = len(possibleTiles)
+        initialSize = len(possibleTiles) #initial number of tiles that the keeper can reach
 
         options = []
         for box in node.state[0]:
@@ -490,23 +493,25 @@ class SearchTree:
             newBoxPos = (currBoxPos[0]+movX, currBoxPos[1]+movY)
             newKeeperPos = (currBoxPos[0]-movX, currBoxPos[1]-movY)
 
-            #verificar se ha um caminho para o keeper
+            #verify if the keeper reaches the position it needs to be to push the box
             if newKeeperPos not in possibleTiles:
                 continue
 
-            if newBoxPos in node.state[0] or newKeeperPos in node.state[0]:
+            #verify if the tile the box will be pushed into doesn't have boxes in it
+            if newBoxPos in node.state[0]:
                 continue
 
-            #verificar se esta a ir contra uma parede ou caixa e verificar se o lugar do keeper esta vazio
-            if self.isWall[newKeeperPos[0]][newKeeperPos[1]] or self.isBlocked[newBoxPos[0]][newBoxPos[1]]:
+            #verify if the tile the box will be pushed into isn't a wall or a static deadlock tile
+            if self.isBlocked[newBoxPos[0]][newBoxPos[1]]:
                 continue
 
             newBoxes = [b for b in node.state[0] if b != currBoxPos]
 
-            #if len(self.goals) <= 4:
+            #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             if self.isBoxed(newBoxPos, newBoxes):
                 continue
 
+            #passage deadlock -> if it has a box in the tiles the box needs to be pushed into
             if newBoxPos in self.passages:
                 if (newBoxPos[0]+movX, newBoxPos[1]+movY) not in self.goals and (newBoxPos[0]+movX*2, newBoxPos[1]+movY*2) not in self.goals:
                     if (newBoxPos[0]+movX, newBoxPos[1]+movY) in newBoxes or (newBoxPos[0]+movX*2, newBoxPos[1]+movY*2) in newBoxes:
@@ -514,6 +519,7 @@ class SearchTree:
 
             newBoxes.append(newBoxPos)
 
+            #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             if len(self.goals) > 4:
                 s = set()
                 s.add(newBoxPos)
@@ -529,30 +535,32 @@ class SearchTree:
                         continue
             
             newPossibleTiles = await self.agentSearch.getMoves(newBoxes, currBoxPos)
-            finalSize = len(newPossibleTiles)
+            finalSize = len(newPossibleTiles) #eventual number of tiles that the keeper can reach
 
-            if finalSize > initialSize + 2:
-                newnode = StarNode((frozenset(newBoxes), currBoxPos), node, keys, 0, self.heuristic(newBoxes))
-                self.open_nodes = [newnode]
+            if finalSize > initialSize + 2: #if there are a lot more tiles the keeper can reach
+                #give the nodes that result from this move more priority than the others
+                #because the root has a very high heuristic
+                newnode = BoxNode((frozenset(newBoxes), currBoxPos), node, keys, 0, self.heuristic(newBoxes))
+                insort_left(self.open_nodes, newnode)
                 self.visitedNodes = set()
                 self.visitedNodes.add(newnode.state)
-                self.open_nodes.append(self.root) #security against unpredicted deadlock
                 newnode.destination = newKeeperPos
                 return
 
-    # procurar a solucao
+    #main function -> search for the solution
     async def search(self, limit=None):
         count = 0
 
         await self.definePassages()
 
-        await self.expandMap()
+        if not self.isSimple:
+            await self.expandMap()
 
         while self.open_nodes != []:
             node = self.open_nodes.pop(0)
             count+=1
 
-            #se cheguei a solucao
+            #if we reached the solution of the level
             if all([coord in self.goals for coord in node.state[0]]):
                 print("Number of attempts: ", count, "\n")
                 print("Time: ", time.time()-self.timer, "\n")
@@ -560,10 +568,9 @@ class SearchTree:
                 print(keys)
                 return keys
 
-            #encontrar os tiles para onde o agent pode ir
+            #find the tiles that the keeper can reach
             possibleTiles = await self.agentSearch.getMoves(node.state[0], node.state[1])
 
-            #como nao cheguei tenho de obter uma lista de possiveis movimentos das caixas
             options = []
             for box in node.state[0]:
                 options.append((box, "d", 1, 0))
@@ -575,30 +582,28 @@ class SearchTree:
                 newBoxPos = (currBoxPos[0]+movX, currBoxPos[1]+movY)
                 newKeeperPos = (currBoxPos[0]-movX, currBoxPos[1]-movY)
 
-                #verificar se ha um caminho para o keeper
+                #verify if the keeper reaches the position it needs to be to push the box
                 if newKeeperPos not in possibleTiles:
                     continue
 
-                if newBoxPos in node.state[0] or newKeeperPos in node.state[0]:
+                #verify if the tile the box will be pushed into doesn't have boxes in it
+                if newBoxPos in node.state[0]:
                     continue
 
-                #verificar se esta a ir contra uma parede ou caixa e verificar se o lugar do keeper esta vazio
-                if self.isWall[newKeeperPos[0]][newKeeperPos[1]] or self.isBlocked[newBoxPos[0]][newBoxPos[1]]:
+                #verify if the tile the box will be pushed into isn't a wall or a static deadlock tile
+                if self.isBlocked[newBoxPos[0]][newBoxPos[1]]:
                     continue
 
                 newBoxes = [b for b in node.state[0] if b != currBoxPos]
 
-                if len(self.goals) <= 4:
-                    if self.isBoxed(newBoxPos, newBoxes):
-                        continue
-                
-                """
-                if self.isCornered2(newBoxPos, newBoxes):
+                #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                if self.isBoxed(newBoxPos, newBoxes):
                     continue
-                """
                 
+                #ideal number of tiles from the keeper to the the tile where he can push the box
                 auxCost = abs(node.state[1][0]-newKeeperPos[0]) + abs(node.state[1][1]-newKeeperPos[1])
 
+                #macros
                 currBoxPos, newBoxPos, keys = self.tunnel(currBoxPos, newBoxPos, movX,movY,newBoxes,keys)
 
                 if newBoxPos in self.passages:
@@ -614,6 +619,7 @@ class SearchTree:
 
                 newBoxes.append(newBoxPos)
 
+                #verify if we are in a new state
                 if (frozenset(newBoxes), currBoxPos) in self.visitedNodes:
                     continue
                 else:
@@ -634,6 +640,7 @@ class SearchTree:
                 #print(currMap)
                 ################################################################################################
 
+                #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                 if len(self.goals) > 4:
                     s = set()
                     s.add(newBoxPos)
@@ -648,13 +655,14 @@ class SearchTree:
                         if flag:
                             continue
 
-                cost = len(keys) + auxCost/100 # baseado na fórmula do score
-                if self.isSimple:
-                    newnode = StarNode((frozenset(newBoxes), currBoxPos), node, keys, node.cost + cost, 0)
-                else:
-                    newnode = StarNode((frozenset(newBoxes), currBoxPos), node, keys, 0, self.heuristic(newBoxes))
-                newnode.destination = newKeeperPos
-                #adicionar o novo Node à lista e sort ao mesmo tempo
+                cost = len(keys) + auxCost/100 #given the way the score is calculated
+                if self.isSimple: #if we are in a simple level -> uniform search
+                    newnode = BoxNode((frozenset(newBoxes), currBoxPos), node, keys, node.cost + cost, 0)
+                else: #if we are in a harder level -> greedy search
+                    newnode = BoxNode((frozenset(newBoxes), currBoxPos), node, keys, 0, self.heuristic(newBoxes))
+                newnode.destination = newKeeperPos #save the tile the keeper will need to be to push the box
+
+                #add a node and sort
                 insort_left(self.open_nodes, newnode)
 
         print("----- Box Search Failed -----\n")
