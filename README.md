@@ -1,5 +1,5 @@
-# iia-ia-sokoban
-Sokoban clone for AI teaching
+# Sokoban Solver
+Artificial Intelligence project where an agent must solve more than 100 levels of the Sokoban game.
 
 ![Demo](https://github.com/dgomes/iia-ia-sokoban/raw/master/data/sokoban_screenshot.png)
 
@@ -22,9 +22,21 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
+## How to show the AI playing
+
+Open 3 terminals:
+
+`$ python3 server.py`
+
+`$ python3 viewer.py`
+
+`$ python3 student.py`
+
+to play using the sample client make sure the client pygame hidden window has focus
+
 ## How to play
 
-open 3 terminals:
+Open 3 terminals:
 
 `$ python3 server.py`
 
@@ -50,4 +62,3 @@ python -m pygame.examples.aliens
 # Credits
 
 Thank you [Kenney](https://www.kenney.nl/assets/sokoban) for the sprites! 
-
